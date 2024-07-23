@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1235</width>
-    <height>711</height>
+    <width>984</width>
+    <height>907</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -21,7 +21,14 @@
        <enum>QLayout::SetFixedSize</enum>
       </property>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="0,0,0,0,0">
+       <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="0,0,0,0,0,0">
+        <item>
+         <widget class="QLabel" name="label_fps">
+          <property name="text">
+           <string/>
+          </property>
+         </widget>
+        </item>
         <item>
          <spacer name="horizontalSpacer_3">
           <property name="orientation">
@@ -97,7 +104,22 @@
           <item>
            <layout class="QVBoxLayout" name="verticalLayout_3">
             <item>
-             <layout class="QHBoxLayout" name="horizontalLayout_11"/>
+             <layout class="QHBoxLayout" name="horizontalLayout_11">
+              <item>
+               <widget class="QLabel" name="label_info2">
+                <property name="text">
+                 <string>TextLabel</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="label_info1">
+                <property name="text">
+                 <string>TextLabel</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </item>
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_10">
@@ -143,16 +165,16 @@
               <item>
                <layout class="QVBoxLayout" name="verticalLayout_15">
                 <item>
-                 <widget class="QPushButton" name="pushButton_5">
+                 <widget class="QPushButton" name="button_start">
                   <property name="text">
-                   <string>PushButton</string>
+                   <string>START</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="pushButton_7">
+                 <widget class="QPushButton" name="button_stop">
                   <property name="text">
-                   <string>PushButton</string>
+                   <string>STOP</string>
                   </property>
                  </widget>
                 </item>
@@ -180,9 +202,6 @@
               </item>
              </layout>
             </item>
-            <item alignment="Qt::AlignBottom">
-             <widget class="QTextEdit" name="textEdit"/>
-            </item>
            </layout>
           </item>
          </layout>
@@ -198,14 +217,21 @@
          <enum>QLayout::SetFixedSize</enum>
         </property>
         <item>
-         <spacer name="horizontalSpacer">
+         <widget class="QPushButton" name="button_back">
+          <property name="text">
+           <string>BACK</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="verticalSpacer">
           <property name="orientation">
-           <enum>Qt::Horizontal</enum>
+           <enum>Qt::Vertical</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
-            <width>40</width>
-            <height>20</height>
+            <width>20</width>
+            <height>40</height>
            </size>
           </property>
          </spacer>
@@ -218,24 +244,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="button_back">
-          <property name="text">
-           <string>BACK</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <spacer name="horizontalSpacer_2">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
+         <widget class="QTextEdit" name="textEdit"/>
         </item>
        </layout>
       </item>

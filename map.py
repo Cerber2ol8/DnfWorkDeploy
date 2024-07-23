@@ -4,9 +4,6 @@ from enum import Enum
 from typing import List
 import time
 
-maplist = []
-last_id = -1
-
 
 class RoomNode:
     # 地图房间
@@ -46,6 +43,9 @@ class PathGraph:
         self.name = name
         self.direction = None
         self.begin = False
+        self.last_id = -1
+
+
         if len(nodes)>0:
             self.startNode = nodes[0]
             self.tailNode = nodes[-1]
@@ -165,7 +165,6 @@ def set_room(room:RoomNode, left:RoomNode, right:RoomNode, up:RoomNode, down:Roo
 def shanji(room_count=9)->PathGraph:
     # 山脊地图数据
 
-
     # 构建地图数据 9个房间：0-8
     rooms:List[RoomNode] = []
     for idx in range(room_count):
@@ -230,226 +229,160 @@ def preprocess_image(image):
     processed_image = cv2.adaptiveThreshold(edge, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
     return processed_image
 
-for file in sorted(os.listdir("saved")):
-    img = cv2.imread(os.path.join("saved",file))
-    img = preprocess_image(img)
-    # img = cv2.resize(img, (50,50))
-    maplist.append(img)
+
+class GameMap:
+    def __init__(self, name="", img_dir="") -> None:
+
+        self.name = name
+        self.img_dir = img_dir
+        self.game_path = None
+        self.maplist = self.load_map(img_dir=img_dir)
 
 
-def get_map(img:cv2.Mat, ratio=(0.844,0.045,0.14))->cv2.Mat:
-    # ratio: x y a
+    def load_map(self, img_dir):
+        exists = False
 
-    shape = img.shape # h,w
-
-    x = int(ratio[0] * shape[1])
-    y = int(ratio[1] * shape[0])
-    a = int(ratio[2] * shape[0])
-
-    ret = img[y:y+a, x:x+a]
-    ret = cv2.resize(ret, (200,200))
-
-    return ret
-
-
-
-def correct(map_id, last_id=-1,path=None):
-    # 纠正某些帧地图id识别错误
-    if path.name == "shanji":
-        node = path.get_node(map_id)
-        last_node = node.last
-        if last_node is not None:
-            last_node_id = last_node.room_id 
-        # else:
-        #     last_node_id = -1
-
-        if last_node_id == last_id:
-            return True
-        else:
-            return False
+        if self.name == "shanji":
+            self.game_path = shanji()
+            exists = True
         
+        maplist = []
+        if exists:
+
+            maplist = []
+            try:
+
+                for file in sorted(os.listdir(img_dir)):
+                    img = cv2.imread(os.path.join(img_dir,file))
+                    img = preprocess_image(img)
+                    # img = cv2.resize(img, (50,50))
+                    maplist.append(img)
+
+            except Exception as e:
+                print(e)
+                exit()
+
+        return maplist
 
 
 
+    def get_map(self, img:cv2.Mat, ratio=(0.844,0.045,0.14))->cv2.Mat:
+        # ratio: x y a
 
-def mark_map(screenshot:cv2.Mat):
+        shape = img.shape # h,w
 
-    best_match_score = -1
-    best_match_map = None
-    threshold = 0.35
+        x = int(ratio[0] * shape[1])
+        y = int(ratio[1] * shape[0])
+        a = int(ratio[2] * shape[0])
 
-    processed_img = preprocess_image(screenshot) 
+        ret = img[y:y+a, x:x+a]
+        ret = cv2.resize(ret, (200,200))
 
-    for i in range(len(maplist)):
-        map_gray = maplist[i]
-        result = cv2.matchTemplate(processed_img, map_gray, cv2.TM_CCOEFF_NORMED)
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-
-        # print(i, max_val)
+        return ret
+            
 
 
-        # 更新最佳匹配
-        if max_val > best_match_score:
-            best_match_score = max_val
-            best_match_map = i
-    # print(best_match_map, best_match_score)
-    if best_match_score > threshold:
+    def mark_map(self, screenshot:cv2.Mat, maplist):
+
+        best_match_score = -1
+        best_match_map = None
+        threshold = 0.35
+
+        processed_img = preprocess_image(screenshot) 
+
+        for i in range(len(maplist)):
+            map_gray = maplist[i]
+            result = cv2.matchTemplate(processed_img, map_gray, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+            # print(i, max_val)
+
+
+            # 更新最佳匹配
+            if max_val > best_match_score:
+                best_match_score = max_val
+                best_match_map = i
         # print(best_match_map, best_match_score)
+        if best_match_score > threshold:
+            # print(best_match_map, best_match_score)
 
-        h, w = maplist[i].shape[:2]
-        top_left = max_loc
-        bottom_right = (top_left[0] + w, top_left[1] + h)
-        ret = screenshot.copy()
-        ret = cv2.rectangle(ret, top_left, bottom_right, (255, 0, 0), 5)
+            h, w = maplist[i].shape[:2]
+            top_left = max_loc
+            bottom_right = (top_left[0] + w, top_left[1] + h)
+            ret = screenshot.copy()
+            ret = cv2.rectangle(ret, top_left, bottom_right, (255, 0, 0), 5)
 
-        return best_match_map, ret
-    else:
-        # print(best_match_map, best_match_score)
-        return -1, screenshot
+            return best_match_map, ret
+        else:
+            # print(best_match_map, best_match_score)
+            return -1, screenshot
 
-def get_room_id(img, path:PathGraph):
-    global last_id
-    map_img = get_map(img)
-    id, res = mark_map(map_img)
-    if id == -1:
-        return id, res
-    else:
-        # 房间id改变了
-        if last_id != id:
-            # 避免识别错误导致的room id跳变
-            last_node = path.get_current_node()
-            if last_id >= 0 and last_node.next and last_node.next.room.room_id == id: 
-                path.step(id)
-                last_id = id
-                
-            elif last_id >= 0 and last_node.last and last_node.last.room.room_id == id: 
-                path.unstep(id)
-                last_id = id
-            elif last_id == -1 and path.begin == False:
-                path.step(id)
-                last_id = id
-
-
-        return last_id, res
+    def get_room_id(self, img, path:PathGraph):
+        map_img = self.get_map(img)
+        id, res = self.mark_map(map_img)
+        if id == -1:
+            return id, res
+        else:
+            # 房间id改变了
+            if last_id != id:
+                # 避免识别错误导致的room id跳变
+                last_node = path.get_current_node()
+                if last_id >= 0 and last_node.next and last_node.next.room.room_id == id: 
+                    path.step(id)
+                    last_id = id
+                    
+                elif last_id >= 0 and last_node.last and last_node.last.room.room_id == id: 
+                    path.unstep(id)
+                    last_id = id
+                elif last_id == -1 and path.begin == False:
+                    path.step(id)
+                    last_id = id
 
 
-    
-    # if correct(id, last_id, map):
-    # path.curRoomId = id
-    # if id >= 0: 
-    #     path = []
-    #     for i in range(len(map.path)):
-    #         if id == map.path[i]:
-    #             path.append(i)
-    #     map.curPathId = path[0]
-    #     last_id = id
+            return last_id, res
 
 
-    #     return id, res
-    # else:
-    #     return last_id, res
+    def path_fit(self, path:PathGraph):
+        directs = [0,0,0,0]
 
-def path_fit(path:PathGraph):
-    directs = [0,0,0,0]
-
-    if path:
-        if path.name == "shanji":
-            if path.curPathId == 0: # 第3张图要往shang靠
-                directs[2] = 1
-            elif path.curPathId == 2: # 第2张图要往右靠
-                directs[1] = 1        
-            elif path.curPathId == 3: # 第3张图要往右靠
-                directs[1] = 1
-            elif path.curPathId == 4: # 第4张图要往右靠
-                directs[1] = 1
-            elif path.curPathId == 5: # 第5张图要往右靠
-                directs[1] = 1
-            elif path.curPathId == 6: # 第6张图要往左靠
-                directs[0] = 1
-            elif path.curPathId == 7: # 第7张图要往左上
-                directs[0] = 1
-                directs[2] = 1
-            else:
-                directs[1] = 1
-    else:
-        directs[1] = 1
+        if path:
+            if path.name == "shanji":
+                if path.curPathId == 0: # 第3张图要往shang靠
+                    directs[2] = 1
+                elif path.curPathId == 2: # 第2张图要往右靠
+                    directs[1] = 1        
+                elif path.curPathId == 3: # 第3张图要往右靠
+                    directs[1] = 1
+                elif path.curPathId == 4: # 第4张图要往右靠
+                    directs[1] = 1
+                elif path.curPathId == 5: # 第5张图要往右靠
+                    directs[1] = 1
+                elif path.curPathId == 6: # 第6张图要往左靠
+                    directs[0] = 1
+                elif path.curPathId == 7: # 第7张图要往左上
+                    directs[0] = 1
+                    directs[2] = 1
+                else:
+                    directs[1] = 1
+        else:
+            directs[1] = 1
 
 
-    return directs
+        return directs
 
-def get_direction(path:PathGraph):
-    node = path.get_current_node()
-    next_node = node.next if node else None
-    if next_node is None:
-        return "STOP"
-    if next_node.room == node.room.up:
-        return "UP"
-    elif next_node.room == node.room.down:
-        return "DOWN"
-    elif next_node.room == node.room.left:
-        return "LEFT"
-    elif next_node.room == node.room.right:
-        return "RIGHT"
-    else:
-        # print(next_node.room_id)
-        return "STOP"
-
-if __name__ == '__main__':
-
-    # def test(node):
-    #     next_node = node.next if node else None
-    #     if next_node.room == node.room.up:
-    #         return "UP"
-    #     elif next_node.room == node.room.down:
-    #         return "DOWN"
-    #     elif next_node.room == node.room.left:
-    #         return "LEFT"
-    #     elif next_node.room == node.room.right:
-    #         return "RIGHT"
-    #     else:
-    #         print(next_node.room_id)
-    #         return "STOP"
-    # node = map_shanji.startNode
-    # while node.next:
-    #     print(test(node))
-    #     node = node.next
-
-
-
-    # exit()
-
-    from grabber import Grabber
-
-    window_title = "ELS-AN00"  # 窗口标题
-    g = Grabber(window_title=window_title)
-    map_shanji = shanji()
-
-
-
-
-    while True:
-        img = g.frame()
-        fc = 0
-        if img is not None:
-            if fc <= 10:
-                fc += 1
-            else:
-                continue
-
-            map = get_map(img)
- 
-            id, res= get_room_id(img, map_shanji)
-
-            # print(id, get_direction(map_shanji))
-            processed_img = preprocess_image(map) 
-
-            cv2.imshow("Res", map)
-            cv2.imshow("processed_img", processed_img)
-            if id > -1:
-                cv2.imshow("mathced img", maplist[id])
-
-        # 按 'q' 键退出
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-        if cv2.waitKey(1) & 0xFF == ord('s'):
-            cv2.imwrite("./saved/save.png",map)
+    def get_direction(self, path:PathGraph):
+        node = path.get_current_node()
+        next_node = node.next if node else None
+        if next_node is None:
+            return "STOP"
+        if next_node.room == node.room.up:
+            return "UP"
+        elif next_node.room == node.room.down:
+            return "DOWN"
+        elif next_node.room == node.room.left:
+            return "LEFT"
+        elif next_node.room == node.room.right:
+            return "RIGHT"
+        else:
+            # print(next_node.room_id)
+            return "STOP"

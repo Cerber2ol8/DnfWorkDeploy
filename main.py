@@ -2,8 +2,10 @@ from argparse import ArgumentParser
 from typing import Optional, Tuple
 
 from adbutils import adb
-from PySide6.QtGui import QImage, QKeyEvent, QMouseEvent, QPixmap, Qt
+from PySide6.QtGui import QImage, QKeyEvent, QMouseEvent, QPixmap
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
+from PySide6.QtCore import QObject, Signal, QThread
+
 import threading
 import scrcpy
 import sys, os
@@ -16,6 +18,9 @@ from Ui_main import Ui_MainWindow
 from yolo import YOLOv8
 
 from control import ScrcpyControl
+from game import GameAgent
+
+import cv2
 
 if not QApplication.instance():
     app = QApplication([])
@@ -24,17 +29,18 @@ else:
 
 
 default_touch_map = {
-        "pad_center":(0,0),
-        "move_up":(0,0),
-        "move_down":(0,0),
-        "move_left":(0,0),
-        "move_right":(0,0),
+        "pad_center":(430,965),
+
+
         "attack":(0,0),
+
+        "buff_0":(0,0),
         "buff_1":(0,0),
         "buff_2":(0,0),
         "buff_3":(0,0),
         "buff_4":(0,0),
 
+        "skill_0":(0,0),
         "skill_1":(0,0),
         "skill_2":(0,0),
         "skill_3":(0,0),
@@ -45,7 +51,14 @@ default_touch_map = {
         "skill_8":(0,0),
         "skill_9":(0,0),
 
-        "sp_skill":(0,0)
+        "sp_0":(0,0),
+
+        "options_0":(0,0),
+        "options_1":(0,0),
+        "options_2":(0,0),
+        "options_3":(0,0),
+        "options_4":(0,0),
+        "options_5":(0,0),
         }
 
 default_config = {
@@ -72,6 +85,22 @@ def read_config(filename):
 
     return config
 
+class ControlVariable(QObject):
+    valueChanged = Signal(str)
+
+    def __init__(self, value=''):
+        super().__init__()
+        self._value = value
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        if self._value != new_value:
+            self._value = new_value
+            self.valueChanged.emit(self._value)
 
 class PrintLogger:
     def __init__(self, text_edit):
@@ -83,6 +112,36 @@ class PrintLogger:
 
     def flush(self):
         pass
+
+class DetectionWorker(QThread):
+    def __init__(self, model:YOLOv8, frame, window):
+        super().__init__()
+
+        # ptr = image.bits()
+        # arr = np.array(ptr).reshape(frame.shape[1], frame.shape[0], 3)
+        self.model = model
+        self.image = frame
+        self.window = window
+
+    def run(self):
+        # TODO 控件绑定变量不起作用
+        start = time.time()
+        boxes, scores, class_ids = self.model(self.image)
+        self.window.busy = False
+
+        cls_object = self.window.game.get_cls_name(class_ids)
+        self.window.class_ids.var = cls_object
+        self.window.boxes.var = boxes
+
+        # self.game.main_loop(self.boxes.var, cls_object)
+        info = f"[{cls_object, boxes}]:  detection cost {(time.time()-start) * 1000} ms"
+
+        self.window.frame_time.var = info
+        print(info)
+
+        # self.window.output_image = self.model.draw_detections(self.image)
+
+
 
 
 class MainWindow(QMainWindow):
@@ -102,7 +161,7 @@ class MainWindow(QMainWindow):
 
         self.config = read_config("config.json")
         self.touch_map = self.config["touch_map"]
-        print(self.touch_map)
+        # print(self.touch_map)
 
         self.model = YOLOv8("best.onnx", conf_thres=0.3)
         self.busy = False
@@ -126,6 +185,22 @@ class MainWindow(QMainWindow):
 
 
         self.control = ScrcpyControl(self)
+        self.game = GameAgent(self.touch_map, self.control)
+        self.worker = None
+        self.output_image = None
+        self.paused = False
+
+        # 检测结果
+        self.boxes = ControlVariable([])
+        self.class_ids = ControlVariable([])
+        self.frame_time = ControlVariable("")
+
+
+        self.boxes.valueChanged.connect(self.ui.label_info1.setText)
+        self.class_ids.valueChanged.connect(self.ui.label_info2.setText)
+        self.frame_time.valueChanged.connect(self.ui.label_fps.setText)
+
+
 
 
 
@@ -134,6 +209,9 @@ class MainWindow(QMainWindow):
         self.ui.button_back.clicked.connect(self.on_click_back)
         self.ui.button_test_move.clicked.connect(self.on_click_test_move)
         self.ui.button_test_stop.clicked.connect(self.on_click_test_stop)
+
+        self.ui.button_start.clicked.connect(self.on_click_start)
+        self.ui.button_stop.clicked.connect(self.on_click_stop)
 
         # Bind config
         self.ui.combo_device.currentTextChanged.connect(self.choose_device)
@@ -246,20 +324,40 @@ class MainWindow(QMainWindow):
 
     def on_init(self):
         self.setWindowTitle(f"Serial: {self.client.device_name}")
-    def detect(self, image, frame):
 
-        start = time.time()
+    def start_detect(self, frame):
+        self.worker = DetectionWorker(self.model, frame, self)
+        self.worker.start()
 
-        ptr = image.bits()
-        arr = np.array(ptr).reshape(frame.shape[1], frame.shape[0], 3)
-        boxes, scores, class_ids = self.model(arr)
-        self.busy = False
-        print(f"detection cost {(time.time()-start) * 1000} ms")
+    def on_click_start(self):
+        self.paused = False
 
-    def on_frame(self, frame):
+    def on_click_stop(self):
+        self.paused = True
+
+
+
+    def on_frame(self, frame, fx=0.4, fy=0.4):
         app.processEvents()
         if frame is not None:
+            self.game.frame += 1
+            shape = frame.shape[0],frame.shape[1]
+
             ratio = self.max_width / max(self.client.resolution)
+            if not self.paused:
+
+                frame = cv2.resize(frame, None, fx=fx, fy=fy, interpolation=cv2.INTER_LINEAR)
+
+                if not self.busy and self.game.frame // self.game.frame_freq:
+                    self.busy = True
+                    self.start_detect(frame)
+
+                if len(self.model.boxes) > 0:
+                    self.output_image = self.model.draw_detections(frame)
+                    frame = self.output_image
+
+                frame = cv2.resize(frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
+
             image = QImage(
                 frame,
                 frame.shape[1],
@@ -268,14 +366,8 @@ class MainWindow(QMainWindow):
                 QImage.Format_BGR888,
             )
 
-            if not self.busy:
-                self.busy = True
-                dt = threading.Thread(
-                    target=self.detect, args=(image, frame)
-                )
-                dt.start()
 
-            # output_image = self.model.draw_detections(arr)
+            # self.output_image = self.model.draw_detections(frame)
 
             # output_image = QImage(
             #     output_image,

@@ -161,6 +161,9 @@ class YOLOv8:
     def __init__(self, path, conf_thres=0.7, iou_thres=0.5):
         self.conf_threshold = conf_thres
         self.iou_threshold = iou_thres
+        self.boxes = []
+        self.scores = []
+        self.class_ids = []
 
         # Initialize model
         self.initialize_model(path)

@@ -18,19 +18,26 @@ class ScrcpyControl:
         self.client = parent.client
         self.touch_map = parent.touch_map
 
-    def touch_start(self, x: float, y: float):
-        self.client.control.touch(int(x), int(y), scrcpy.ACTION_DOWN)
+        self.move_touch_id = -1
+        self.attack_touch_id = -2
+        self.skill_touch_id = -3
+        self.tap_touch_id = -4
 
-    def touch_move(self, x: float, y: float):
-        self.client.control.touch(int(x), int(y), scrcpy.ACTION_MOVE)
 
-    def touch_end(self, x: float, y: float):
-        self.client.control.touch(int(x), int(y), scrcpy.ACTION_UP)
 
-    def tap(self, x: float, y: float):
-        self.touch_start(x, y)
+    def touch_start(self, x: float, y: float, touch_id=-1):
+        self.client.control.touch(int(x), int(y), scrcpy.ACTION_DOWN, touch_id=touch_id)
+
+    def touch_move(self, x: float, y: float, touch_id=-1):
+        self.client.control.touch(int(x), int(y), scrcpy.ACTION_MOVE, touch_id=touch_id)
+
+    def touch_end(self, x: float, y: float, touch_id=-1):
+        self.client.control.touch(int(x), int(y), scrcpy.ACTION_UP, touch_id=touch_id)
+
+    def tap(self, x: float, y: float, touch_id=-1):
+        self.touch_start(x, y, touch_id=touch_id)
         time.sleep(0.01)
-        self.touch_end(x, y)
+        self.touch_end(x, y, touch_id=touch_id)
 
     def calc_mov_point(self, angle: float) -> Tuple[int, int]:
         rx, ry = self.touch_map["pad_center"]
@@ -50,12 +57,12 @@ class ScrcpyControl:
     def move_start(self, angle: float):
         x, y = self.calc_mov_point(angle)
         cx, xy = self.touch_map["pad_center"]
-        self.touch_start(cx, xy)
-        self.touch_move(x, y)
+        self.touch_start(cx, xy, self.move_touch_id)
+        self.touch_move(x, y, self.move_touch_id)
 
-    def move_stop(self, angle: float):
-        x, y = self.calc_mov_point(angle)
-        self.touch_end(x, y)
+    def move_stop(self):
+        x, y = self.touch_map["pad_center"]
+        self.touch_end(x, y, self.move_touch_id)
         
     def move_thread(self, angle: float, t: float):
         self.move_start(angle)
@@ -63,10 +70,10 @@ class ScrcpyControl:
         self.move_stop(angle)
 
     def attack(self, t: float = 0.01):
-        x, y = (1142, 649)
-        self.touch_start(x, y)
+        x, y = self.touch_map["attack"]
+        self.touch_start(x, y, self.attack_touch_id)
         time.sleep(t)
-        self.touch_end(x, y)
+        self.touch_end(x, y, self.attack_touch_id)
 
 
 
@@ -75,17 +82,14 @@ class ScrcpyControl:
 
 
     def direction_move(self, direct:str, to_release=release_tick):
-
+        
         directions = direct.strip().split("_")
         if len(directions) == 0 or "STOP" in directions:
             for d in direct_tick:
                 direct_tick[d] = 0
-
         for d in directions:
             if len(d) == 0:
                 directions.remove(d)
-
-        # action_to_complete = []
         if "UP" in directions:
             direct_tick["DOWN"] = 0
 
@@ -97,9 +101,6 @@ class ScrcpyControl:
 
         elif "RIGHT" in directions:
             direct_tick["LEFT"] = 0
-
-        action_cache = []
-
 
         # 刷新状态
         for action in direct_dic.keys():
@@ -115,30 +116,9 @@ class ScrcpyControl:
         for action in directions:
             if action == "STOP":
                 continue
-            # control.key_press(direct_dic[action])
-
             self.move_start(direct_dic[action])
-                # key_status[action] = 1
-
-            # control.key_up(direct_dic[action])
-            # control.key_down(direct_dic[action])
-            # control.key_press("L")
-
-
-
-            # control.key_up(direct_dic[action])
-            # control.key_down(direct_dic[action])
-            # control.key_press(direct_dic[action])
-
             direct_tick[action] = to_release
             key_status[action] = 1
-
-            # is_key_down = True
-            # key_down.append(action)
-
-
-
-
         return key_status, directions
 
 

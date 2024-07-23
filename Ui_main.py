@@ -24,7 +24,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(1235, 711)
+        MainWindow.resize(984, 907)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.horizontalLayout_3 = QHBoxLayout(self.centralwidget)
@@ -34,6 +34,11 @@ class Ui_MainWindow(object):
         self.verticalLayout.setSizeConstraint(QLayout.SetFixedSize)
         self.horizontalLayout_4 = QHBoxLayout()
         self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
+        self.label_fps = QLabel(self.centralwidget)
+        self.label_fps.setObjectName(u"label_fps")
+
+        self.horizontalLayout_4.addWidget(self.label_fps)
+
         self.horizontalSpacer_3 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.horizontalLayout_4.addItem(self.horizontalSpacer_3)
@@ -77,6 +82,16 @@ class Ui_MainWindow(object):
         self.verticalLayout_3.setObjectName(u"verticalLayout_3")
         self.horizontalLayout_11 = QHBoxLayout()
         self.horizontalLayout_11.setObjectName(u"horizontalLayout_11")
+        self.label_info2 = QLabel(self.centralwidget)
+        self.label_info2.setObjectName(u"label_info2")
+
+        self.horizontalLayout_11.addWidget(self.label_info2)
+
+        self.label_info1 = QLabel(self.centralwidget)
+        self.label_info1.setObjectName(u"label_info1")
+
+        self.horizontalLayout_11.addWidget(self.label_info1)
+
 
         self.verticalLayout_3.addLayout(self.horizontalLayout_11)
 
@@ -114,15 +129,15 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_15 = QVBoxLayout()
         self.verticalLayout_15.setObjectName(u"verticalLayout_15")
-        self.pushButton_5 = QPushButton(self.centralwidget)
-        self.pushButton_5.setObjectName(u"pushButton_5")
+        self.button_start = QPushButton(self.centralwidget)
+        self.button_start.setObjectName(u"button_start")
 
-        self.verticalLayout_15.addWidget(self.pushButton_5)
+        self.verticalLayout_15.addWidget(self.button_start)
 
-        self.pushButton_7 = QPushButton(self.centralwidget)
-        self.pushButton_7.setObjectName(u"pushButton_7")
+        self.button_stop = QPushButton(self.centralwidget)
+        self.button_stop.setObjectName(u"button_stop")
 
-        self.verticalLayout_15.addWidget(self.pushButton_7)
+        self.verticalLayout_15.addWidget(self.button_stop)
 
         self.pushButton_6 = QPushButton(self.centralwidget)
         self.pushButton_6.setObjectName(u"pushButton_6")
@@ -139,11 +154,6 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_3.addLayout(self.horizontalLayout_10)
 
-        self.textEdit = QTextEdit(self.centralwidget)
-        self.textEdit.setObjectName(u"textEdit")
-
-        self.verticalLayout_3.addWidget(self.textEdit, 0, Qt.AlignBottom)
-
 
         self.horizontalLayout_7.addLayout(self.verticalLayout_3)
 
@@ -157,23 +167,24 @@ class Ui_MainWindow(object):
         self.horizontalLayout.setSpacing(6)
         self.horizontalLayout.setObjectName(u"horizontalLayout")
         self.horizontalLayout.setSizeConstraint(QLayout.SetFixedSize)
-        self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.button_back = QPushButton(self.centralwidget)
+        self.button_back.setObjectName(u"button_back")
 
-        self.horizontalLayout.addItem(self.horizontalSpacer)
+        self.horizontalLayout.addWidget(self.button_back)
+
+        self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.horizontalLayout.addItem(self.verticalSpacer)
 
         self.button_home = QPushButton(self.centralwidget)
         self.button_home.setObjectName(u"button_home")
 
         self.horizontalLayout.addWidget(self.button_home)
 
-        self.button_back = QPushButton(self.centralwidget)
-        self.button_back.setObjectName(u"button_back")
+        self.textEdit = QTextEdit(self.centralwidget)
+        self.textEdit.setObjectName(u"textEdit")
 
-        self.horizontalLayout.addWidget(self.button_back)
-
-        self.horizontalSpacer_2 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.horizontalLayout.addItem(self.horizontalSpacer_2)
+        self.horizontalLayout.addWidget(self.textEdit)
 
 
         self.verticalLayout.addLayout(self.horizontalLayout)
@@ -191,18 +202,21 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
+        self.label_fps.setText("")
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"Device", None))
         self.flip.setText(QCoreApplication.translate("MainWindow", u"Flip", None))
         self.label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:20pt;\">Loading</span></p></body></html>", None))
+        self.label_info2.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
+        self.label_info1.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
         self.button_test_move.setText(QCoreApplication.translate("MainWindow", u"test_move", None))
         self.button_test_stop.setText(QCoreApplication.translate("MainWindow", u"test_stop", None))
         self.pushButton_3.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
         self.pushButton.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
         self.pushButton_2.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
-        self.pushButton_5.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
-        self.pushButton_7.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
+        self.button_start.setText(QCoreApplication.translate("MainWindow", u"START", None))
+        self.button_stop.setText(QCoreApplication.translate("MainWindow", u"STOP", None))
         self.pushButton_6.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
-        self.button_home.setText(QCoreApplication.translate("MainWindow", u"HOME", None))
         self.button_back.setText(QCoreApplication.translate("MainWindow", u"BACK", None))
+        self.button_home.setText(QCoreApplication.translate("MainWindow", u"HOME", None))
     # retranslateUi
 
