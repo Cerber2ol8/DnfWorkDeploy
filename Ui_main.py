@@ -24,7 +24,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(984, 907)
+        MainWindow.resize(764, 907)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.horizontalLayout_3 = QHBoxLayout(self.centralwidget)
@@ -167,19 +167,20 @@ class Ui_MainWindow(object):
         self.horizontalLayout.setSpacing(6)
         self.horizontalLayout.setObjectName(u"horizontalLayout")
         self.horizontalLayout.setSizeConstraint(QLayout.SetFixedSize)
-        self.button_back = QPushButton(self.centralwidget)
-        self.button_back.setObjectName(u"button_back")
-
-        self.horizontalLayout.addWidget(self.button_back)
-
-        self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
-
-        self.horizontalLayout.addItem(self.verticalSpacer)
-
+        self.verticalLayout_2 = QVBoxLayout()
+        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.button_home = QPushButton(self.centralwidget)
         self.button_home.setObjectName(u"button_home")
 
-        self.horizontalLayout.addWidget(self.button_home)
+        self.verticalLayout_2.addWidget(self.button_home)
+
+        self.button_back = QPushButton(self.centralwidget)
+        self.button_back.setObjectName(u"button_back")
+
+        self.verticalLayout_2.addWidget(self.button_back)
+
+
+        self.horizontalLayout.addLayout(self.verticalLayout_2)
 
         self.textEdit = QTextEdit(self.centralwidget)
         self.textEdit.setObjectName(u"textEdit")
@@ -216,7 +217,7 @@ class Ui_MainWindow(object):
         self.button_start.setText(QCoreApplication.translate("MainWindow", u"START", None))
         self.button_stop.setText(QCoreApplication.translate("MainWindow", u"STOP", None))
         self.pushButton_6.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
-        self.button_back.setText(QCoreApplication.translate("MainWindow", u"BACK", None))
         self.button_home.setText(QCoreApplication.translate("MainWindow", u"HOME", None))
+        self.button_back.setText(QCoreApplication.translate("MainWindow", u"BACK", None))
     # retranslateUi
 

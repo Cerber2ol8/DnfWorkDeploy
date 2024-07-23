@@ -396,7 +396,7 @@ def main():
         "-m",
         "--max_width",
         type=int,
-        default=800,
+        default=1200,
         help="Set max width of the window, default 800",
     )
     parser.add_argument(
