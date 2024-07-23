@@ -13,6 +13,7 @@ import json
 import numpy as np
 import time
 
+import torch
 from Ui_main import Ui_MainWindow
 
 from yolo import YOLOv8
@@ -21,6 +22,8 @@ from control import ScrcpyControl
 from game import GameAgent
 
 import cv2
+
+# os.environ["QT_DEBUG_PLUGINS"] = "1"
 
 if not QApplication.instance():
     app = QApplication([])
@@ -70,17 +73,17 @@ def create_default_config(filename):
     with open(filename, 'w') as configfile:
         json.dump(default_config, configfile, indent=4)
 
-def read_config(filename):
+def read_config(filename, logger):
     if not os.path.exists(filename):
         create_default_config(filename)
-        print(f"默认配置文件 '{filename}' 已创建")
+        logger(f"默认配置文件 '{filename}' 已创建")
     
     with open(filename, 'r') as configfile:
         config = json.load(configfile)
-        print(f"已读取配置文件 '{filename}'")
+        logger(f"已读取配置文件 '{filename}'")
 
     for key, value in config.items():
-        print(key, value)
+        logger((key, value))
 
 
     return config
@@ -102,18 +105,28 @@ class ControlVariable(QObject):
             self._value = new_value
             self.valueChanged.emit(self._value)
 
-class PrintLogger:
+
+class Logger:
     def __init__(self, text_edit):
         self.text_edit = text_edit
+        self.console = sys.stdout
 
-    def write(self, message):
+    def __call__(self, message):
+        message = str(message) + "\n"
+        self.console.write(message)
         if message != '\n':
             self.text_edit.append(message)
 
     def flush(self):
-        pass
+        self.console.flush()
+        self.text_edit.clear()
 
-class DetectionWorker(QThread):
+
+
+class DetectionWorker(QObject):
+    finished = Signal()
+
+
     def __init__(self, model:YOLOv8, frame, window):
         super().__init__()
 
@@ -122,25 +135,33 @@ class DetectionWorker(QThread):
         self.model = model
         self.image = frame
         self.window = window
+        self._running = True
+        # self.logger = logger
+
 
     def run(self):
         # TODO 控件绑定变量不起作用
         start = time.time()
         boxes, scores, class_ids = self.model(self.image)
-        self.window.busy = False
 
-        cls_object = self.window.game.get_cls_name(class_ids)
-        self.window.class_ids.var = cls_object
-        self.window.boxes.var = boxes
+        # cls_object = self.window.game.get_cls_name(class_ids)
+        # self.window.class_ids.var = cls_object
+        # self.window.boxes.var = boxes
 
         # self.game.main_loop(self.boxes.var, cls_object)
-        info = f"[{cls_object, boxes}]:  detection cost {(time.time()-start) * 1000} ms"
+        info = f"[{boxes}]:  detection cost {(time.time()-start) * 1000} ms"
 
-        self.window.frame_time.var = info
+        # self.window.frame_time.var = info
         print(info)
 
         # self.window.output_image = self.model.draw_detections(self.image)
 
+        # self.window.busy = False
+
+        self.finished.emit()
+
+    def stop(self):
+        self._running = False
 
 
 
@@ -155,11 +176,11 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.max_width = max_width
-        # 重定向print输出
-        sys.stdout = PrintLogger(self.ui.textEdit)
-        sys.stderr = PrintLogger(self.ui.textEdit)
 
-        self.config = read_config("config.json")
+        self.logger = Logger(self.ui.textEdit)
+
+        
+        self.config = read_config("config.json", self.logger)
         self.touch_map = self.config["touch_map"]
         # print(self.touch_map)
 
@@ -319,15 +340,26 @@ class MainWindow(QMainWindow):
         if code in hard_code:
             return hard_code[code]
 
-        print(f"Unknown keycode: {code}")
+        self.logger(f"Unknown keycode: {code}")
         return -1
 
     def on_init(self):
         self.setWindowTitle(f"Serial: {self.client.device_name}")
 
     def start_detect(self, frame):
+
         self.worker = DetectionWorker(self.model, frame, self)
-        self.worker.start()
+        self.worker_thread = threading.Thread(target=self.worker.run)
+
+        self.worker.finished.connect(self.on_worker_finished)
+
+        self.worker_thread.start()
+
+    def on_worker_finished(self):
+        self.busy = False
+
+
+
 
     def on_click_start(self):
         self.paused = False
@@ -353,8 +385,7 @@ class MainWindow(QMainWindow):
                     self.start_detect(frame)
 
                 if len(self.model.boxes) > 0:
-                    self.output_image = self.model.draw_detections(frame)
-                    frame = self.output_image
+                    frame = self.model.draw_detections(frame)
 
                 frame = cv2.resize(frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
 
@@ -396,7 +427,7 @@ def main():
         "-m",
         "--max_width",
         type=int,
-        default=1200,
+        default=900,
         help="Set max width of the window, default 800",
     )
     parser.add_argument(
@@ -412,6 +443,7 @@ def main():
     m.show()
 
     m.client.start()
+
 
 if __name__ == "__main__":
     main()
