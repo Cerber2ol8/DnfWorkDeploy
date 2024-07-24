@@ -1,5 +1,4 @@
 import onnxruntime as ort
-import torch
 
 def check_cuda_available():
     providers = ort.get_available_providers()

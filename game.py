@@ -8,6 +8,7 @@ from utils import *
 from control import ScrcpyControl
 from map import GameMap
 from map import PathGraph
+import threading
 
 names = [ 
   # 枪炮师，阿修罗
@@ -64,9 +65,12 @@ buddings = ["open_door", "close_door"]  # 地图大门
 
 
 class GameAgent:
-    def __init__(self, touch_map:dict, control:ScrcpyControl, map_name:str="", map_dir:str="") -> None:
+    def __init__(self, touch_map:dict, control:ScrcpyControl, 
+                 frame_freq = 5,
+                 map_name:str="", map_dir:str="",
+                 to_release = 20) -> None:
         self.frame = 0
-        self.frame_freq = 4 # 每隔 frame_freq 帧处理一次
+        self.frame_freq = frame_freq # 每隔 frame_freq 帧处理一次
 
 
         self.banzhuan = True # 搬砖模式/升级模式（寻路路逻辑不同）
@@ -78,14 +82,20 @@ class GameAgent:
         self.buff_list = []
         self.sp_skills_list = []
         self.parse_skills()
+         
+        self.map_name = map_name
+        self.map_dir = map_dir  
+
+        self.control = control
+        self.to_release = to_release
 
 
         self.last_action = ""
         self.get_buff = False
-        self.completed = False
+        self.round_completed = False
+        self.get_reward = False
+        self.player_xywh = [200,500,100,100]
         self.now_action = ""
-
-        self.control = control
         self.game_map = GameMap(map_name, map_dir)
 
 
@@ -100,22 +110,31 @@ class GameAgent:
 
 
     def parse_skills(self):
-
+        n_skill = 0
+        n_buff = 0
+        n_sp = 0
+        self.skill_list = []
+        self.buff_list = []
+        self.sp_skills_list = []
         for key, value in self.touch_map.items():
             prefix = key.split("_")[0]
-            n_skill = 0
-            n_buff = 0
-            n_sp = 0
+
             
             if prefix == "skill":
-                self.skill_list.append(self.touch_map[prefix+"_"+str(n_skill)])
-                n_skill += 1
+                pos = self.touch_map[prefix+"_"+str(n_skill)]
+                if pos[0] != 0 or pos[1] != 0:
+                    self.skill_list.append(pos)
+                    n_skill += 1
             elif prefix == "buff":
-                self.skill_list.append(self.touch_map[prefix+"_"+str(n_buff)])
-                n_buff += 1
+                pos = self.touch_map[prefix+"_"+str(n_buff)]
+                if pos[0] != 0 or pos[1] != 0:
+                    self.buff_list.append(pos)
+                    n_buff += 1
             elif prefix == "sp":
-                self.skill_list.append(self.touch_map[prefix+"_"+str(n_sp)])
-                n_sp += 1
+                pos = self.touch_map[prefix+"_"+str(n_sp)]
+                if pos[0] != 0 or pos[1] != 0:
+                    self.sp_skills_list.append(pos)
+                    n_sp += 1
 
 
 
@@ -126,39 +145,76 @@ class GameAgent:
         self.mode = mode
 
     def main_loop(self, img_object, cls_object) -> None:
-        if self.frame % self.frame_freq == 0:
-            self.actions()
+        # self.control.on_frame()
         pass
 
-    def release_skill(self, skill_id):
-        pass
 
-    def release_buff(self, buff_id):
-        pass
+    def release_skill(self, skill_id, is_sp=False):
+        # self.control.move_stop()
+        t = threading.Thread(
+            target=self.release_skill_worker, args=(skill_id, is_sp)
+        )
+        t.start()
+        
+            
+    def release_skill_worker(self, skill_id, is_sp):
+        if not is_sp:
+            x, y = self.skill_list[skill_id]
+        else:
+            x, y = self.sp_skills_list[skill_id]
+        self.control.tap(x, y, self.control.skill_touch_id)
+
+
+    def release_buff(self):
+        # self.control.move_stop()
+        t = threading.Thread(
+            target=self.release_buff_worker
+        )
+        t.start()
+
+    def release_buff_worker(self):
+        if not self.get_buff:
+            for buff_id in range(len(self.buff_list)):
+                x, y = self.buff_list[buff_id]
+                self.control.tap(x, y, self.control.skill_touch_id)
+                time.sleep(0.2)
+            self.get_buff = True
+
+    def reset(self):
+        self.last_action = ""
+        self.get_buff = False
+        self.round_completed = False
+        self.now_action = ""
+        self.get_reward = False
+        self.player_xywh = [200,500,100,100]
+        self.game_map = GameMap(self.map_name, self.map_dir)
 
     def normal_attack(self):
+        self.control.attack()
 
-        pass
 
-    def flip_card(self):
-        pass
 
     def move_stop(self):
         self.control.move_stop()
 
 
-
+    def flip_card(self):
+        self.control.tap(100,100)
+        self.control.tap(100,100)
+        self.control.tap(100,100)
 
 
 
     # 控制角色执行操作
-    def actions(self, img_object, cls_object, action_attack:list, 
-                path:PathGraph, directkeys, control:ScrcpyControl, to_release):
+    def actions(self, img_object, cls_object):
         # 目标框:xywh,目标类别:str，当前房间id:int，buff动作:list[str]，攻击动作:list[str]
-        global now_action, last_action, player_xywh, get_reward
-        completed = False
+
+        round_completed = False
+
         details = ""
-        info = None
+
+
+        direction = "STOP"
 
         if img_object is not None and len(img_object):
 
@@ -183,7 +239,8 @@ class GameAgent:
             # 扫描角色和怪物的位置
             for i in range(len(cls_object)):
                 if cls_object[i] in players:
-                    player_xywh = img_object[i]
+                    self.player_xywh = img_object[i]
+                    self.release_buff()
 
                 if cls_object[i] in monsters:
                     monsters_seen.append([cls_object[i], img_object[i]])
@@ -206,20 +263,21 @@ class GameAgent:
             # 遇怪优先打怪
             # 捡东西
             # 根据房间id 和方位进下一个门
-            if player_xywh is None and not get_reward:
-                now_action = "PLAYER NOT FOUND"
-                return now_action, get_reward, info
+            if self.player_xywh is None and not self.get_reward:
+                self.now_action = "PLAYER NOT FOUND"
+
+                direction = "RIGHT" # 默认往右走
 
             if len(monsters_seen) > 0:
-                get_reward = False
-                now_action = "ATTACKING MONSTERS"
+                self.get_reward = False
+                self.now_action = "ATTACKING MONSTERS"
                 monster_name = ""
 
                 min_distance = float("inf")
                 # 遍历怪物 寻找距离最近的怪
                 for i in range(len(monsters_seen)):
                     cls_name, monster_xywh = monsters_seen[i]
-                    dis = cal_distance_bottom(player_xywh, monster_xywh)
+                    dis = cal_distance_bottom(self.player_xywh, monster_xywh)
                     if dis < min_distance:
                         monster_box = monster_xywh
                         monster_name = cls_name
@@ -228,24 +286,25 @@ class GameAgent:
 
                 monster_x = cal_bottom_x(monster_box)
                 monster_y = cal_bottom_y(monster_box)
-                player_x = cal_bottom_x(player_xywh)
-                player_y = cal_bottom_y(player_xywh)    
+                player_x = cal_bottom_x(self.player_xywh)
+                player_y = cal_bottom_y(self.player_xywh)    
 
                 # 处于攻击距离
                 if abs(player_x - monster_x) < attx and abs(player_y - monster_y) < atty:
                     # zhuanshen
                     if monster_x - player_x > 0 : # 右侧
-                        control.turn("RIGHT")
+                        self.control.turn("RIGHT")
                     else:
-                        control.turn("LEFT")
+                        self.control.turn("LEFT")
 
-                    if len(action_attack)>0:
-                        idx = random.randint(0,len(action_attack)-1)
-                        # key = action_attack[idx]
-                        x, y = action_attack[idx]
-                        # directkeys.key_press(key)
-                        control.tap(x, y)
-                        
+                    prob = random.randint(0,10)
+                    if prob < 5:
+                        self.normal_attack()
+
+
+                    if len(self.skill_list)>0:
+                        idx = random.randint(0,len(self.skill_list)-1)
+                        self.release_skill(idx)
                         details = f"SKILL {idx} RELEASED"
 
                     # clear_action(action_cache, directkeys)
@@ -262,39 +321,39 @@ class GameAgent:
                     elif monster_y - player_y < -atty:
                         directs[2] = 1
 
-                    d = direct(directs)
+                    direction = direct(directs)
 
-                    details = f"GO {d} TO ATTACK {monster_name}"
-                    now_action += f" [{details}]"
-                    key_status, directions = control.direction_move(direct=d, to_release=to_release)
+                    details = f"GO {direction} TO ATTACK {monster_name}"
+                    self.now_action += f" [{details}]"
+                    # key_status, directions = self.control.direction_move(direct=d, to_release=self.to_release)
                 
                 
             elif len(items_seen) > 0:
-                now_action = "COLLECTING ITEMS"
+                self.now_action = "COLLECTING ITEMS"
 
                 min_distance = float("inf")
                 # 遍历物品
                 for i in range(len(items_seen)):
                     cls_name, item_xywh = items_seen[i]
-                    dis = cal_distance_bottom(player_xywh, item_xywh)
+                    dis = cal_distance_bottom(self.player_xywh, item_xywh)
                     if dis < min_distance:
                         item_box = item_xywh
                         item_name = cls_name
                         min_idx = i
                         min_distance = dis
                 
-                if abs(item_box[1] - player_xywh[1]) > 0 or abs(item_box[0] - player_xywh[0]) > 0:
+                if abs(item_box[1] - self.player_xywh[1]) > 0 or abs(item_box[0] - self.player_xywh[0]) > 0:
 
                     # directs = [0,0,0,0] # left, right, up, down
 
-                    if item_box[0] - player_xywh[0] > thx:
+                    if item_box[0] - self.player_xywh[0] > thx:
                         # 右侧
                         directs[1] = 1
                     else:
                         # 左侧
                         directs[0] = 1
 
-                    if item_box[1] - player_xywh[1] > thy:
+                    if item_box[1] - self.player_xywh[1] > thy:
                         # 下侧
                         directs[3] = 1
                     else:
@@ -302,47 +361,37 @@ class GameAgent:
                         directs[2] = 1
 
 
-                    d = direct(directs)
+                    direction = direct(directs)
                     
-                    details = f"GO {d} TO COLLECT {item_name}"
-                    now_action += f" [{details}]"
-                    key_status, directions = control.direction_move(direct=d, to_release=to_release)
+                    details = f"GO {direction} TO COLLECT {item_name}"
+                    self.now_action += f" [{details}]"
+                    # key_status, directions = self.control.direction_move(direct=d, to_release=self.to_release)
             
             elif len(card_seem) > 0:
 
-                for k in ["W", "A", "S", "D"]:
-                    directkeys.key_up(k)
-                
-                now_action = "CHECKING AWARD CARDS"
-                time.sleep(1)
-                directkeys.key_press("X")
-                time.sleep(1)
-                directkeys.key_press("X")
-                time.sleep(1)
-                directkeys.key_press("X")
-                time.sleep(1)
-                # directkeys.key_press("E")
-                # directkeys.key_press("E")
-                get_reward = True
+                self.control.stop_all()
+                self.now_action = "CHECKING AWARD CARDS"
+                # time.sleep(1)
+                self.flip_card()
+                self.get_reward = True
+
             # 跟随提示
             else:
-                if get_reward:
-                    completed = True
-
-
-
-                elif path:
-                    self.where_to_go(open_door_seen, player_xywh, path, control, hint_xywh=None)
+                if self.get_reward:
+                    round_completed = True
+  
+                elif self.game_map:
+                    direction = self.where_to_go(open_door_seen, self.player_xywh, self.game_map.game_path, self.control, hint_xywh=None)
 
                 elif len(direct_hints_seen) > 0:
-                    now_action = "FOLLOWING ROOM HINTS"
+                    self.now_action = "FOLLOWING ROOM HINTS"
                     cls_name, hint_xywh = direct_hints_seen[0]
                     direct_hint = cls_name.split("_")[1] if len(cls_name.split("_")) > 1 else None
 
                     hint_x = cal_center_x(hint_xywh)
                     hint_y = cal_center_y(hint_xywh)
-                    player_x = cal_center_x(player_xywh)
-                    player_y = cal_center_y(player_xywh)
+                    player_x = cal_center_x(self.player_xywh)
+                    player_y = cal_center_y(self.player_xywh)
 
                     if abs(hint_x - player_x) > 0 or abs(hint_y - player_y) > 0: 
                         # directs = [0,0,0,0] # left, right, up, down
@@ -359,19 +408,20 @@ class GameAgent:
                         else:
                             # 上侧
                             directs[2] = 1
-                        d = direct(directs)
+                        direction = direct(directs)
                         
                     details = f"MOVING {direct_hint} TO ENTRY DOOR"
-                    now_action += f" [{details}]"
-                    key_status, directions = control.direction_move(direct=d, to_release=to_release)
+                    self.now_action += f" [{details}]"
+                    # key_status, directions = self.control.direction_move(direct=d, to_release=self.to_release)
+
 
 
                 #     if direct_hint:
-                #         where_to_go(open_door_seen, player_xywh, action_cache, path,directkeys,hint_xywh=hint_xywh)
+                #         where_to_go(open_door_seen, self.player_xywh, action_cache, path,directkeys,hint_xywh=hint_xywh)
 
                 # # 跟随提示
                 elif len(hints_seen) > 3:
-                    now_action = "FOLLOWING HINTS"
+                    self.now_action = "FOLLOWING HINTS"
                     min_distance = float("inf")
                     min_sec_distance = float("inf")
                     direct_hint = None
@@ -381,7 +431,7 @@ class GameAgent:
 
                     for i in range(len(hints_seen)):
                         cls_name, hint_xywh = hints_seen[i]
-                        distance = cal_distance_bottom(player_xywh, hint_xywh)
+                        distance = cal_distance_bottom(self.player_xywh, hint_xywh)
                         distance_list.append((i, distance))
                     sorted_distance = sorted(distance_list, key=lambda x: x[1])
 
@@ -391,8 +441,8 @@ class GameAgent:
 
                     hint_x = cal_center_x(hint_box)
                     hint_y = cal_center_y(hint_box)
-                    player_x = cal_bottom_x(player_xywh)
-                    player_y = cal_bottom_y(player_xywh)
+                    player_x = cal_bottom_x(self.player_xywh)
+                    player_y = cal_bottom_y(self.player_xywh)
 
 
                     if abs(hint_x - player_x) > 0 or abs(hint_y - player_y) > 0: 
@@ -410,21 +460,20 @@ class GameAgent:
                         else:
                             # 上侧
                             directs[2] = 1
-                        d = direct(directs)
+                        direction = direct(directs)
                         
                     details = f"REMAIN {len(hints_seen)} HINTS"
-                    now_action += f" [{details}]"
-                    key_status, directions = control.direction_move(direct=d, to_release=to_release)
+                    self.now_action += f" [{details}]"
+                    # key_status, directions = self.control.direction_move(direct=d, to_release=self.to_release)
 
-                else:
-                    control.direction_move(direct=d, to_release=to_release)
+                # else:
+                    # self.control.direction_move(direct=d, to_release=self.to_release)
 
 
-                # where_to_go(open_door_seen, player_xywh, action_cache, path,directkeys)
+                # where_to_go(open_door_seen, self.player_xywh, action_cache, path,directkeys)
 
-            if last_action != now_action:
-                # print(now_action)
-                last_action = now_action
+            if self.last_action != self.now_action:
+                self.last_action = self.now_action
 
                 
         else:
@@ -432,8 +481,8 @@ class GameAgent:
             pass
             # action = [direct_dic[key] for key in direct_dic.keys()][random.randint(0,len(direct_dic)-1)]
             # directkeys.key_press(action)
-        info = [key_status, directions]
-        return last_action, completed, info
+
+        return self.last_action, direction
 
 
     # 获取地图中门的相对方位
@@ -457,8 +506,8 @@ class GameAgent:
 
     def where_to_go(self, door_seen, player_xywh, path:PathGraph, control:ScrcpyControl, hint_xywh=None):
             
-            global now_action
-            now_action = "FINDING WAY"
+
+            self.now_action = "FINDING WAY"
             details = ""
             door_directions = []
             doors_xywh = []
@@ -478,7 +527,7 @@ class GameAgent:
                     #     door_directions.append(d)
                     #     doors_xywh.append(door_xywh)
             else:
-                directs = path.path_fit(path)
+                directs = self.game_map.path_fit(path)
 
                 details += "NO_DOOR_FOUND"
 
@@ -591,10 +640,12 @@ class GameAgent:
             d = direct(directs)
             if d:
                 details += f" IN PATH NODE {path.curPathId if path else -1} MOVING {d}"
-                control.direction_move(direct=d)
+                # control.direction_move(direct=d, to_release=self.to_release)
+ 
             else:
                 details += f" STOPPED"
-            now_action += f" [{details}]]"
+            self.now_action += f" [{details}]]"
+            return d
         
 
 

@@ -13,17 +13,18 @@ import json
 import numpy as np
 import time
 
-import torch
 from Ui_main import Ui_MainWindow
 
 from yolo import YOLOv8
+from ultralytics import YOLO
+from yolo import draw_detections, class_names
 
 from control import ScrcpyControl
 from game import GameAgent
 
 import cv2
+os.environ['YOLO_VERBOSE'] = "false"
 
-# os.environ["QT_DEBUG_PLUGINS"] = "1"
 
 if not QApplication.instance():
     app = QApplication([])
@@ -73,17 +74,17 @@ def create_default_config(filename):
     with open(filename, 'w') as configfile:
         json.dump(default_config, configfile, indent=4)
 
-def read_config(filename, logger):
+def read_config(filename):
     if not os.path.exists(filename):
         create_default_config(filename)
-        logger(f"默认配置文件 '{filename}' 已创建")
+        print(f"默认配置文件 '{filename}' 已创建")
     
     with open(filename, 'r') as configfile:
         config = json.load(configfile)
-        logger(f"已读取配置文件 '{filename}'")
+        print(f"已读取配置文件 '{filename}'")
 
     for key, value in config.items():
-        logger((key, value))
+        print(key, value)
 
 
     return config
@@ -105,61 +106,81 @@ class ControlVariable(QObject):
             self._value = new_value
             self.valueChanged.emit(self._value)
 
-
-class Logger:
+class PrintLogger:
     def __init__(self, text_edit):
         self.text_edit = text_edit
-        self.console = sys.stdout
 
-    def __call__(self, message):
-        message = str(message) + "\n"
-        self.console.write(message)
+    def write(self, message):
         if message != '\n':
             self.text_edit.append(message)
 
     def flush(self):
-        self.console.flush()
-        self.text_edit.clear()
-
-
+        pass
 
 class DetectionWorker(QObject):
-    finished = Signal()
+    # finished = Signal()
+    # bbox = Signal(list)
+    # class_ids = Signal(list)
+    ret = Signal(dict)
 
-
-    def __init__(self, model:YOLOv8, frame, window):
+    def __init__(self, model, frame, window):
         super().__init__()
 
-        # ptr = image.bits()
-        # arr = np.array(ptr).reshape(frame.shape[1], frame.shape[0], 3)
         self.model = model
         self.image = frame
-        self.window = window
+        # self.window = window
         self._running = True
-        # self.logger = logger
-
 
     def run(self):
         # TODO 控件绑定变量不起作用
         start = time.time()
-        boxes, scores, class_ids = self.model(self.image)
+        # _boxes, _scores, _class_ids = self.model(self.image)
+        result = self.model(self.image)[0]
+        # Process results list
+
+        _boxes = result.boxes.xywh.cpu().numpy()  # Boxes object for bounding box outputs
+        # masks = result.masks  # Masks object for segmentation masks outputs
+        # keypoints = result.keypoints  # Keypoints object for pose outputs
+        _scores = result.boxes.conf.cpu().numpy()  # Probs object for classification outputs
+        # obb = result.obb  # Oriented boxes object for OBB outputs
+        _class_ids = result.boxes.cls.cpu().tolist()
+        _class_ids = [int(value) for value in _class_ids]
+
+
+
+
+
+
+
+        _time = time.time() - start
+
+        ret_dict = {
+            "start_time": start,
+            "bbox": _boxes,
+            "scores": _scores,
+            "class_ids": _class_ids,
+            "cost_time": _time
+        }
+
+        self.ret.emit(ret_dict)
+
+        # self.bbox.emit(_boxes)
+        # self.class_ids.emit(_class_ids)
+
+        # self.window.busy = False
 
         # cls_object = self.window.game.get_cls_name(class_ids)
         # self.window.class_ids.var = cls_object
         # self.window.boxes.var = boxes
 
         # self.game.main_loop(self.boxes.var, cls_object)
-        info = f"[{boxes}]:  detection cost {(time.time()-start) * 1000} ms"
+        # info = f"[{cls_object, boxes}]:  detection cost {(time.time()-start) * 1000} ms"
+        # self.finished.emit()
 
         # self.window.frame_time.var = info
-        print(info)
+        # print(info)
 
         # self.window.output_image = self.model.draw_detections(self.image)
-
-        # self.window.busy = False
-
-        self.finished.emit()
-
     def stop(self):
         self._running = False
 
@@ -176,16 +197,25 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.max_width = max_width
+        # 重定向print输出
+        sys.stdout = PrintLogger(self.ui.textEdit)
+        # sys.stderr = PrintLogger(self.ui.textEdit)
 
-        self.logger = Logger(self.ui.textEdit)
+        self.config_file = "config.json"
 
-        
-        self.config = read_config("config.json", self.logger)
+        self.config = read_config(self.config_file)
         self.touch_map = self.config["touch_map"]
+
+        self.test_config = None
         # print(self.touch_map)
 
-        self.model = YOLOv8("best.onnx", conf_thres=0.3)
+        # self.model = YOLOv8("best.onnx", conf_thres=0.05)
+        self.model = YOLO("best.onnx")
+        self.bbox = []
+        self.scores = []
+        self.class_ids = []
         self.busy = False
+        self.frame_time = ""
 
 
         # Setup devices
@@ -200,36 +230,39 @@ class MainWindow(QMainWindow):
             device=self.device,
             flip=self.ui.flip.isChecked(),
             encoder_name=encoder_name,
+            max_fps=30
         )
         self.client.add_listener(scrcpy.EVENT_INIT, self.on_init)
         self.client.add_listener(scrcpy.EVENT_FRAME, self.on_frame)
 
 
-        self.control = ScrcpyControl(self)
-        self.game = GameAgent(self.touch_map, self.control)
+        self.control = ScrcpyControl(self) 
+        # TODO 添加控件输入
+        self.game = GameAgent(self.touch_map, self.control, 10, "shanji", "maps/shanji", 10)
         self.worker = None
         self.output_image = None
-        self.paused = False
+        self.paused = True
 
-        # 检测结果
-        self.boxes = ControlVariable([])
-        self.class_ids = ControlVariable([])
-        self.frame_time = ControlVariable("")
+        self.show_cursor = False
 
 
-        self.boxes.valueChanged.connect(self.ui.label_info1.setText)
-        self.class_ids.valueChanged.connect(self.ui.label_info2.setText)
-        self.frame_time.valueChanged.connect(self.ui.label_fps.setText)
 
 
 
 
 
         # Bind controllers
-        self.ui.button_home.clicked.connect(self.on_click_home)
+        self.ui.button_reload.clicked.connect(self.on_click_reload_config)
         self.ui.button_back.clicked.connect(self.on_click_back)
-        self.ui.button_test_move.clicked.connect(self.on_click_test_move)
-        self.ui.button_test_stop.clicked.connect(self.on_click_test_stop)
+        self.ui.button_move_up.clicked.connect(self.on_click_move_up)
+        self.ui.button_move_down.clicked.connect(self.on_click_move_down)
+        self.ui.button_move_left.clicked.connect(self.on_click_move_left)
+        self.ui.button_move_right.clicked.connect(self.on_click_move_right)
+        self.ui.button_move_stop.clicked.connect(self.on_click_test_stop)
+
+        self.ui.button_cursor.clicked.connect(self.on_click_show_cursor)
+        self.ui.button_test_skill.clicked.connect(self.on_click_test_skill)
+
 
         self.ui.button_start.clicked.connect(self.on_click_start)
         self.ui.button_stop.clicked.connect(self.on_click_stop)
@@ -282,26 +315,80 @@ class MainWindow(QMainWindow):
     def on_mouse_event(self, action=scrcpy.ACTION_DOWN):
         def handler(evt: QMouseEvent):
             focused_widget = QApplication.focusWidget()
+
             if focused_widget is not None:
-                focused_widget.clearFocus()
-            ratio = self.max_width / max(self.client.resolution)
-            self.client.control.touch(
-                evt.position().x() / ratio, evt.position().y() / ratio, action
-            )
+                ratio = self.max_width / max(self.client.resolution)
+                px, py = evt.position().x() / ratio, evt.position().y() / ratio
+                self.client.control.touch(px, py, action)
+
+                if self.show_cursor:
+                    print(px, py)
+
+
+
+            
+
+
 
         return handler
 
-    def on_click_test_move(self):
-        self.control.direction_move("UP")
+    def on_click_move_up(self):
+        self.control.direction_move("UP", 50)
 
 
-    def on_click_test_stop(self):
-        centerx, centery = self.touch_map["pad_center"]
+    def on_click_move_down(self):
+        self.control.direction_move("DOWN", 50)
 
-        self.control.touch_end(centerx, centery)
-                
+    def on_click_move_left(self):
+        self.control.direction_move("LEFT", 50)
+
+    def on_click_move_right(self):
+        self.control.direction_move("RIGHT", 50)
+
+    def on_click_show_cursor(self):
+        self.show_cursor = not self.show_cursor 
+
+    def on_click_reload_config(self):
+        self.config = read_config(self.config_file)
+        self.touch_map = self.config["touch_map"]
+        self.game.touch_map = self.touch_map
+        self.game.parse_skills()
         
 
+    def on_click_test_stop(self):
+        self.game.move_stop()
+        self.control.move_stop()
+
+    def on_click_test_skill(self):
+        if self.test_config is None:
+            t = threading.Thread(target=self.test_worker)
+            t.start()
+            
+    def test_worker(self):
+
+        n_buff = len(self.game.buff_list)
+        n_skills = len(self.game.skill_list)
+        n_sp_skills = len(self.game.sp_skills_list)
+        print(f"buff count:{n_buff}, skill count:{n_skills}, sp skill count:{n_sp_skills}")
+
+        self.game.release_buff()
+        
+
+        for id in range(len(self.game.skill_list)):
+            time.sleep(2)
+            self.game.release_skill(id)
+
+        for id in range(len(self.game.sp_skills_list)):
+            time.sleep(2)
+            self.game.release_skill(id,is_sp=True)
+
+        self.game.normal_attack()
+        time.sleep(0.5)
+        self.game.normal_attack()
+        time.sleep(0.5)
+        self.game.normal_attack()
+        time.sleep(0.5)
+        self.game.normal_attack()
 
     def on_key_event(self, action=scrcpy.ACTION_DOWN):
         def handler(evt: QKeyEvent):
@@ -340,25 +427,49 @@ class MainWindow(QMainWindow):
         if code in hard_code:
             return hard_code[code]
 
-        self.logger(f"Unknown keycode: {code}")
+        print(f"Unknown keycode: {code}")
         return -1
 
     def on_init(self):
         self.setWindowTitle(f"Serial: {self.client.device_name}")
 
     def start_detect(self, frame):
-
         self.worker = DetectionWorker(self.model, frame, self)
         self.worker_thread = threading.Thread(target=self.worker.run)
-
-        self.worker.finished.connect(self.on_worker_finished)
+        self.worker.ret.connect(self.on_worker_data_update)
+        # self.worker.finished.connect(self.on_worker_finished)
 
         self.worker_thread.start()
 
-    def on_worker_finished(self):
+    
+    def on_worker_data_update(self, ret_dict):
+        self.bbox = ret_dict["bbox"]
+        self.scores = ret_dict["scores"]
+        self.class_ids = ret_dict["class_ids"]
+        cost_time = ret_dict["cost_time"]
+        self.frame_time = f"{cost_time * 1000 } ms"
+        cls_objects = []
+
+        for cls in self.class_ids:
+            label_text = class_names[cls]
+            cls_objects.append(label_text)
+        self.labels = cls_objects
+
+
         self.busy = False
 
 
+
+        last_action, direction = self.game.actions(self.bbox, self.labels)
+        ct = time.time()
+        local_time = time.localtime(ct)
+        time_head = time.strftime("%Y-%m-%d %H:%M:%S", local_time)
+        data_secs = (ct - int(ct)) * 1000
+        time_stamp = "%s.%03d" % (time_head, data_secs)
+        print(f"[{time_stamp}]  {last_action} moving: {direction}")
+        # print(self.control.direct_tick)
+        # self.control.update_direction(direction)
+        self.control.move_to_direction(direction)
 
 
     def on_click_start(self):
@@ -379,16 +490,21 @@ class MainWindow(QMainWindow):
             if not self.paused:
 
                 frame = cv2.resize(frame, None, fx=fx, fy=fy, interpolation=cv2.INTER_LINEAR)
+                # if self.busy:
+                #     print(f"[{time.time()}] dropped")
 
                 if not self.busy and self.game.frame // self.game.frame_freq:
                     self.busy = True
                     self.start_detect(frame)
+                    # print(self.game.frame)
 
-                if len(self.model.boxes) > 0:
-                    frame = self.model.draw_detections(frame)
+                if len(self.bbox) > 0:
+                    self.output_image = draw_detections(frame, self.bbox, self.scores, self.class_ids)
+                    frame = self.output_image
 
                 frame = cv2.resize(frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
 
+            # self.game.main_loop(self.bbox, self.labels)
             image = QImage(
                 frame,
                 frame.shape[1],
@@ -396,6 +512,8 @@ class MainWindow(QMainWindow):
                 frame.shape[1] * 3,
                 QImage.Format_BGR888,
             )
+            self.ui.label_fps.text = self.frame_time
+
 
 
             # self.output_image = self.model.draw_detections(frame)
@@ -443,7 +561,6 @@ def main():
     m.show()
 
     m.client.start()
-
 
 if __name__ == "__main__":
     main()

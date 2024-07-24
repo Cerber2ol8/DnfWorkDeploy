@@ -164,6 +164,8 @@ class YOLOv8:
         self.boxes = []
         self.scores = []
         self.class_ids = []
+        self.class_names = class_names
+        self.labels = []
 
         # Initialize model
         self.initialize_model(path)
@@ -187,6 +189,11 @@ class YOLOv8:
 
         self.boxes, self.scores, self.class_ids = self.process_output(outputs)
 
+        self.labels = []
+
+        for class_id in self.class_ids:
+            self.labels.append(self.class_names[class_id])
+
         return self.boxes, self.scores, self.class_ids
 
     def prepare_input(self, image):
@@ -200,7 +207,7 @@ class YOLOv8:
         # Scale input pixel values to 0 to 1
         input_img = input_img / 255.0
         input_img = input_img.transpose(2, 0, 1)
-        input_tensor = input_img[np.newaxis, :, :, :].astype(np.float32)
+        input_tensor = input_img[np.newaxis, :, :, :].astype(np.float16)
 
         return input_tensor
 

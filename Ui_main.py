@@ -24,7 +24,7 @@ class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(764, 907)
+        MainWindow.resize(907, 534)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.horizontalLayout_3 = QHBoxLayout(self.centralwidget)
@@ -34,11 +34,6 @@ class Ui_MainWindow(object):
         self.verticalLayout.setSizeConstraint(QLayout.SetFixedSize)
         self.horizontalLayout_4 = QHBoxLayout()
         self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
-        self.label_fps = QLabel(self.centralwidget)
-        self.label_fps.setObjectName(u"label_fps")
-
-        self.horizontalLayout_4.addWidget(self.label_fps)
-
         self.horizontalSpacer_3 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.horizontalLayout_4.addItem(self.horizontalSpacer_3)
@@ -82,16 +77,6 @@ class Ui_MainWindow(object):
         self.verticalLayout_3.setObjectName(u"verticalLayout_3")
         self.horizontalLayout_11 = QHBoxLayout()
         self.horizontalLayout_11.setObjectName(u"horizontalLayout_11")
-        self.label_info2 = QLabel(self.centralwidget)
-        self.label_info2.setObjectName(u"label_info2")
-
-        self.horizontalLayout_11.addWidget(self.label_info2)
-
-        self.label_info1 = QLabel(self.centralwidget)
-        self.label_info1.setObjectName(u"label_info1")
-
-        self.horizontalLayout_11.addWidget(self.label_info1)
-
 
         self.verticalLayout_3.addLayout(self.horizontalLayout_11)
 
@@ -99,36 +84,56 @@ class Ui_MainWindow(object):
         self.horizontalLayout_10.setObjectName(u"horizontalLayout_10")
         self.verticalLayout_13 = QVBoxLayout()
         self.verticalLayout_13.setObjectName(u"verticalLayout_13")
-        self.button_test_move = QPushButton(self.centralwidget)
-        self.button_test_move.setObjectName(u"button_test_move")
+        self.label_info2 = QLabel(self.centralwidget)
+        self.label_info2.setObjectName(u"label_info2")
 
-        self.verticalLayout_13.addWidget(self.button_test_move)
+        self.verticalLayout_13.addWidget(self.label_info2)
 
-        self.button_test_stop = QPushButton(self.centralwidget)
-        self.button_test_stop.setObjectName(u"button_test_stop")
+        self.button_move_up = QPushButton(self.centralwidget)
+        self.button_move_up.setObjectName(u"button_move_up")
 
-        self.verticalLayout_13.addWidget(self.button_test_stop)
+        self.verticalLayout_13.addWidget(self.button_move_up)
 
-        self.pushButton_3 = QPushButton(self.centralwidget)
-        self.pushButton_3.setObjectName(u"pushButton_3")
+        self.button_move_down = QPushButton(self.centralwidget)
+        self.button_move_down.setObjectName(u"button_move_down")
 
-        self.verticalLayout_13.addWidget(self.pushButton_3)
+        self.verticalLayout_13.addWidget(self.button_move_down)
 
-        self.pushButton = QPushButton(self.centralwidget)
-        self.pushButton.setObjectName(u"pushButton")
+        self.button_move_left = QPushButton(self.centralwidget)
+        self.button_move_left.setObjectName(u"button_move_left")
 
-        self.verticalLayout_13.addWidget(self.pushButton)
+        self.verticalLayout_13.addWidget(self.button_move_left)
 
-        self.pushButton_2 = QPushButton(self.centralwidget)
-        self.pushButton_2.setObjectName(u"pushButton_2")
+        self.button_move_right = QPushButton(self.centralwidget)
+        self.button_move_right.setObjectName(u"button_move_right")
 
-        self.verticalLayout_13.addWidget(self.pushButton_2)
+        self.verticalLayout_13.addWidget(self.button_move_right)
+
+        self.button_move_stop = QPushButton(self.centralwidget)
+        self.button_move_stop.setObjectName(u"button_move_stop")
+
+        self.verticalLayout_13.addWidget(self.button_move_stop)
+
+        self.button_test_skill = QPushButton(self.centralwidget)
+        self.button_test_skill.setObjectName(u"button_test_skill")
+
+        self.verticalLayout_13.addWidget(self.button_test_skill)
+
+        self.button_cursor = QPushButton(self.centralwidget)
+        self.button_cursor.setObjectName(u"button_cursor")
+
+        self.verticalLayout_13.addWidget(self.button_cursor)
 
 
         self.horizontalLayout_10.addLayout(self.verticalLayout_13)
 
         self.verticalLayout_15 = QVBoxLayout()
         self.verticalLayout_15.setObjectName(u"verticalLayout_15")
+        self.label_info1 = QLabel(self.centralwidget)
+        self.label_info1.setObjectName(u"label_info1")
+
+        self.verticalLayout_15.addWidget(self.label_info1)
+
         self.button_start = QPushButton(self.centralwidget)
         self.button_start.setObjectName(u"button_start")
 
@@ -138,11 +143,6 @@ class Ui_MainWindow(object):
         self.button_stop.setObjectName(u"button_stop")
 
         self.verticalLayout_15.addWidget(self.button_stop)
-
-        self.pushButton_6 = QPushButton(self.centralwidget)
-        self.pushButton_6.setObjectName(u"pushButton_6")
-
-        self.verticalLayout_15.addWidget(self.pushButton_6)
 
 
         self.horizontalLayout_10.addLayout(self.verticalLayout_15)
@@ -169,10 +169,15 @@ class Ui_MainWindow(object):
         self.horizontalLayout.setSizeConstraint(QLayout.SetFixedSize)
         self.verticalLayout_2 = QVBoxLayout()
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
-        self.button_home = QPushButton(self.centralwidget)
-        self.button_home.setObjectName(u"button_home")
+        self.label_fps = QLabel(self.centralwidget)
+        self.label_fps.setObjectName(u"label_fps")
 
-        self.verticalLayout_2.addWidget(self.button_home)
+        self.verticalLayout_2.addWidget(self.label_fps)
+
+        self.button_reload = QPushButton(self.centralwidget)
+        self.button_reload.setObjectName(u"button_reload")
+
+        self.verticalLayout_2.addWidget(self.button_reload)
 
         self.button_back = QPushButton(self.centralwidget)
         self.button_back.setObjectName(u"button_back")
@@ -184,6 +189,7 @@ class Ui_MainWindow(object):
 
         self.textEdit = QTextEdit(self.centralwidget)
         self.textEdit.setObjectName(u"textEdit")
+        self.textEdit.setReadOnly(True)
 
         self.horizontalLayout.addWidget(self.textEdit)
 
@@ -203,21 +209,22 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
-        self.label_fps.setText("")
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"Device", None))
         self.flip.setText(QCoreApplication.translate("MainWindow", u"Flip", None))
         self.label.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:20pt;\">Loading</span></p></body></html>", None))
-        self.label_info2.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
-        self.label_info1.setText(QCoreApplication.translate("MainWindow", u"TextLabel", None))
-        self.button_test_move.setText(QCoreApplication.translate("MainWindow", u"test_move", None))
-        self.button_test_stop.setText(QCoreApplication.translate("MainWindow", u"test_stop", None))
-        self.pushButton_3.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
-        self.pushButton.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
-        self.pushButton_2.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
-        self.button_start.setText(QCoreApplication.translate("MainWindow", u"START", None))
-        self.button_stop.setText(QCoreApplication.translate("MainWindow", u"STOP", None))
-        self.pushButton_6.setText(QCoreApplication.translate("MainWindow", u"PushButton", None))
-        self.button_home.setText(QCoreApplication.translate("MainWindow", u"HOME", None))
-        self.button_back.setText(QCoreApplication.translate("MainWindow", u"BACK", None))
+        self.label_info2.setText(QCoreApplication.translate("MainWindow", u"\u529f\u80fd\u6d4b\u8bd5\u533a\u57df", None))
+        self.button_move_up.setText(QCoreApplication.translate("MainWindow", u"move up", None))
+        self.button_move_down.setText(QCoreApplication.translate("MainWindow", u"move down", None))
+        self.button_move_left.setText(QCoreApplication.translate("MainWindow", u"move left", None))
+        self.button_move_right.setText(QCoreApplication.translate("MainWindow", u"move right", None))
+        self.button_move_stop.setText(QCoreApplication.translate("MainWindow", u"move stop", None))
+        self.button_test_skill.setText(QCoreApplication.translate("MainWindow", u"test skill", None))
+        self.button_cursor.setText(QCoreApplication.translate("MainWindow", u"show_cursor", None))
+        self.label_info1.setText(QCoreApplication.translate("MainWindow", u"\u8fd0\u884c\u533a\u57df", None))
+        self.button_start.setText(QCoreApplication.translate("MainWindow", u"START DETECTION", None))
+        self.button_stop.setText(QCoreApplication.translate("MainWindow", u"STOP DETECTION", None))
+        self.label_fps.setText(QCoreApplication.translate("MainWindow", u"frame rate", None))
+        self.button_reload.setText(QCoreApplication.translate("MainWindow", u"RELOAD CONF", None))
+        self.button_back.setText(QCoreApplication.translate("MainWindow", u"PHONE BACK", None))
     # retranslateUi
 

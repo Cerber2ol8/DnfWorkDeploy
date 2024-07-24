@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>764</width>
-    <height>907</height>
+    <width>907</width>
+    <height>534</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -21,14 +21,7 @@
        <enum>QLayout::SetFixedSize</enum>
       </property>
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="0,0,0,0,0,0">
-        <item>
-         <widget class="QLabel" name="label_fps">
-          <property name="text">
-           <string/>
-          </property>
-         </widget>
-        </item>
+       <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="0,0,0,0,0">
         <item>
          <spacer name="horizontalSpacer_3">
           <property name="orientation">
@@ -104,59 +97,65 @@
           <item>
            <layout class="QVBoxLayout" name="verticalLayout_3">
             <item>
-             <layout class="QHBoxLayout" name="horizontalLayout_11">
-              <item>
-               <widget class="QLabel" name="label_info2">
-                <property name="text">
-                 <string>TextLabel</string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="label_info1">
-                <property name="text">
-                 <string>TextLabel</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
+             <layout class="QHBoxLayout" name="horizontalLayout_11"/>
             </item>
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_10">
               <item>
                <layout class="QVBoxLayout" name="verticalLayout_13">
                 <item>
-                 <widget class="QPushButton" name="button_test_move">
+                 <widget class="QLabel" name="label_info2">
                   <property name="text">
-                   <string>test_move</string>
+                   <string>功能测试区域</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="button_test_stop">
+                 <widget class="QPushButton" name="button_move_up">
                   <property name="text">
-                   <string>test_stop</string>
+                   <string>move up</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="pushButton_3">
+                 <widget class="QPushButton" name="button_move_down">
                   <property name="text">
-                   <string>PushButton</string>
+                   <string>move down</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="pushButton">
+                 <widget class="QPushButton" name="button_move_left">
                   <property name="text">
-                   <string>PushButton</string>
+                   <string>move left</string>
                   </property>
                  </widget>
                 </item>
                 <item>
-                 <widget class="QPushButton" name="pushButton_2">
+                 <widget class="QPushButton" name="button_move_right">
                   <property name="text">
-                   <string>PushButton</string>
+                   <string>move right</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="button_move_stop">
+                  <property name="text">
+                   <string>move stop</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="button_test_skill">
+                  <property name="text">
+                   <string>test skill</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="button_cursor">
+                  <property name="text">
+                   <string>show_cursor</string>
                   </property>
                  </widget>
                 </item>
@@ -165,23 +164,23 @@
               <item>
                <layout class="QVBoxLayout" name="verticalLayout_15">
                 <item>
+                 <widget class="QLabel" name="label_info1">
+                  <property name="text">
+                   <string>运行区域</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
                  <widget class="QPushButton" name="button_start">
                   <property name="text">
-                   <string>START</string>
+                   <string>START DETECTION</string>
                   </property>
                  </widget>
                 </item>
                 <item>
                  <widget class="QPushButton" name="button_stop">
                   <property name="text">
-                   <string>STOP</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QPushButton" name="pushButton_6">
-                  <property name="text">
-                   <string>PushButton</string>
+                   <string>STOP DETECTION</string>
                   </property>
                  </widget>
                 </item>
@@ -219,23 +218,34 @@
         <item>
          <layout class="QVBoxLayout" name="verticalLayout_2">
           <item>
-           <widget class="QPushButton" name="button_home">
+           <widget class="QLabel" name="label_fps">
             <property name="text">
-             <string>HOME</string>
+             <string>frame rate</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="button_reload">
+            <property name="text">
+             <string>RELOAD CONF</string>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QPushButton" name="button_back">
             <property name="text">
-             <string>BACK</string>
+             <string>PHONE BACK</string>
             </property>
            </widget>
           </item>
          </layout>
         </item>
         <item>
-         <widget class="QTextEdit" name="textEdit"/>
+         <widget class="QTextEdit" name="textEdit">
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
         </item>
        </layout>
       </item>

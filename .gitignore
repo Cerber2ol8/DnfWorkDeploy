@@ -1,3 +1,5 @@
 *.onnx
+*.pt
+
 __pycache__/
 scrcpy/__pycache__/

@@ -1,9 +1,7 @@
-import cv2
 import os
-from enum import Enum
 from typing import List
 import time
-
+import cv2
 
 class RoomNode:
     # 地图房间
@@ -386,3 +384,21 @@ class GameMap:
         else:
             # print(next_node.room_id)
             return "STOP"
+        
+
+class MapMaker:
+    def __init__(self, path, name) -> None:
+        import cv2
+        self.path = path
+        self.name = name
+        self.imgs = []
+
+    def capture(self):
+        pass
+    
+    def undo(self):
+        pass
+
+    def preview(self):
+        pass
+    
