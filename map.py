@@ -2,7 +2,7 @@ import os
 from typing import List
 import time
 import cv2
-
+import threading
 class RoomNode:
     # 地图房间
     def __init__(self, room_id, neighbors=[-1,-1,-1,-1], 
@@ -41,7 +41,8 @@ class PathGraph:
         self.name = name
         self.direction = None
         self.begin = False
-        self.last_id = -1
+        self.locker = threading.Lock()
+        self.inertia = False
 
 
         if len(nodes)>0:
@@ -127,7 +128,10 @@ class PathGraph:
             self.curRoomId = self.path[self.curPathId]
             self.nodes[self.curPathId].visited = True
             print(f"进入地图，当前地图id:{self.curRoomId}，路径id:{self.curPathId}")
-            time.sleep(0.3)
+            t = threading.Thread(
+                target=self.wait_stop_worker
+            )
+            t.start()
             return True
         else:
             return False
@@ -143,10 +147,28 @@ class PathGraph:
             self.curRoomId = self.path[self.curPathId]
             self.nodes[self.curPathId].visited = True
             print(f"进入地图，当前地图id:{self.curRoomId}，路径id:{self.curPathId}")
-            time.sleep(0.3)
+            t = threading.Thread(
+                target=self.wait_stop_worker
+            )
+            t.start()
             return True
         else:
             return False
+        
+    def is_waiting(self):
+        with self.locker:
+           inertia = self.inertia
+        return inertia
+
+
+
+    def wait_stop_worker(self):
+        with self.locker:
+            self.inertia = True
+        time.sleep(0.5)
+        with self.locker:
+            self.inertia = False
+
 
 
 
@@ -207,7 +229,8 @@ def shanji(room_count=9)->PathGraph:
 
 
     path_graph = PathGraph(name="shanji", nodes=nodes, path=path)
-    return path_graph
+    special_room = 6
+    return path_graph, special_room
 
 
 
@@ -235,19 +258,20 @@ class GameMap:
         self.img_dir = img_dir
         self.game_path = None
         self.maplist = self.load_map(img_dir=img_dir)
+        self.last_id = -1
+        self.special_room = -1
 
 
     def load_map(self, img_dir):
         exists = False
+        # TODO map选择
 
         if self.name == "shanji":
-            self.game_path = shanji()
+            self.game_path, self.special_room = shanji()
             exists = True
         
         maplist = []
         if exists:
-
-            maplist = []
             try:
 
                 for file in sorted(os.listdir(img_dir)):
@@ -277,10 +301,13 @@ class GameMap:
         ret = cv2.resize(ret, (200,200))
 
         return ret
+    
+    def is_special_room(self):
+        return self.last_id == self.special_room
             
 
 
-    def mark_map(self, screenshot:cv2.Mat, maplist):
+    def mark_map(self, screenshot:cv2.Mat):
 
         best_match_score = -1
         best_match_map = None
@@ -288,8 +315,8 @@ class GameMap:
 
         processed_img = preprocess_image(screenshot) 
 
-        for i in range(len(maplist)):
-            map_gray = maplist[i]
+        for i in range(len(self.maplist)):
+            map_gray = self.maplist[i]
             result = cv2.matchTemplate(processed_img, map_gray, cv2.TM_CCOEFF_NORMED)
             min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
@@ -304,7 +331,7 @@ class GameMap:
         if best_match_score > threshold:
             # print(best_match_map, best_match_score)
 
-            h, w = maplist[i].shape[:2]
+            h, w = self.maplist[i].shape[:2]
             top_left = max_loc
             bottom_right = (top_left[0] + w, top_left[1] + h)
             ret = screenshot.copy()
@@ -315,29 +342,34 @@ class GameMap:
             # print(best_match_map, best_match_score)
             return -1, screenshot
 
-    def get_room_id(self, img, path:PathGraph):
+    def get_room_id(self, img, _path:PathGraph=None):
+        if _path is None:
+            path = self.game_path
+        else:
+            path = _path
+
         map_img = self.get_map(img)
         id, res = self.mark_map(map_img)
         if id == -1:
             return id, res
         else:
             # 房间id改变了
-            if last_id != id:
+            if self.last_id != id:
                 # 避免识别错误导致的room id跳变
                 last_node = path.get_current_node()
-                if last_id >= 0 and last_node.next and last_node.next.room.room_id == id: 
+                if self.last_id >= 0 and last_node.next and last_node.next.room.room_id == id: 
                     path.step(id)
-                    last_id = id
+                    self.last_id = id
                     
-                elif last_id >= 0 and last_node.last and last_node.last.room.room_id == id: 
+                elif self.last_id >= 0 and last_node.last and last_node.last.room.room_id == id: 
                     path.unstep(id)
-                    last_id = id
-                elif last_id == -1 and path.begin == False:
+                    self.last_id = id
+                elif self.last_id == -1 and path.begin == False:
                     path.step(id)
-                    last_id = id
+                    self.last_id = id
 
 
-            return last_id, res
+            return self.last_id, res
 
 
     def path_fit(self, path:PathGraph):

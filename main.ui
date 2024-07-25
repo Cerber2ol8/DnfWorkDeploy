@@ -146,6 +146,13 @@
                  </widget>
                 </item>
                 <item>
+                 <widget class="QPushButton" name="button_attack">
+                  <property name="text">
+                   <string>test_attack</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
                  <widget class="QPushButton" name="button_test_skill">
                   <property name="text">
                    <string>test skill</string>
@@ -167,6 +174,16 @@
                  <widget class="QLabel" name="label_info1">
                   <property name="text">
                    <string>运行区域</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_map">
+                  <property name="frameShape">
+                   <enum>QFrame::NoFrame</enum>
+                  </property>
+                  <property name="text">
+                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:20pt;&quot;&gt;Loading&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                   </property>
                  </widget>
                 </item>
