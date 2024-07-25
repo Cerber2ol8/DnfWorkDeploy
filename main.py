@@ -15,15 +15,19 @@ import time
 
 from Ui_main import Ui_MainWindow
 
+os.environ['YOLO_VERBOSE'] = "false"
+# import torch
 from yolo import YOLOv8
-from ultralytics import YOLO
-from yolo import draw_detections, class_names
 
+from check_cuda import check_cuda_available
+check_cuda_available()
+sys.path.append("/home/cerbrus/.conda/envs/chatglm3-6b/lib/python3.10/site-packages/torch/lib")
+from yolo import draw_detections, class_names
+from ultralytics import YOLO
 from control import ScrcpyControl
 from game import GameAgent
 
 import cv2
-os.environ['YOLO_VERBOSE'] = "false"
 
 
 if not QApplication.instance():
@@ -211,6 +215,7 @@ class MainWindow(QMainWindow):
 
         # self.model = YOLOv8("best.onnx", conf_thres=0.05)
         self.model = YOLO("best.onnx")
+        self.model("test.png")
         self.bbox = []
         self.scores = []
         self.class_ids = []
@@ -466,7 +471,7 @@ class MainWindow(QMainWindow):
         time_head = time.strftime("%Y-%m-%d %H:%M:%S", local_time)
         data_secs = (ct - int(ct)) * 1000
         time_stamp = "%s.%03d" % (time_head, data_secs)
-        print(f"[{time_stamp}]  {last_action} moving: {direction}")
+        print(f"[{time_stamp}] [{self.frame_time}]  {last_action} moving: {direction}")
         # print(self.control.direct_tick)
         # self.control.update_direction(direction)
         self.control.move_to_direction(direction)
