@@ -49,8 +49,16 @@ class ScrcpyControl:
 
     def tap(self, x: float, y: float, touch_id=-1):
         self.touch_start(x, y, touch_id=touch_id)
-        time.sleep(0.01)
+        time.sleep(0.005)
         self.touch_end(x, y, touch_id=touch_id)
+
+    def tap_pos(self, pos: list, touch_id=-1):
+        x = pos[0]
+        y = pos[1]
+        self.touch_start(x, y, touch_id=touch_id)
+        time.sleep(0.005)
+        self.touch_end(x, y, touch_id=touch_id)
+
 
     def calc_mov_point(self, angle: float) -> Tuple[int, int]:
         rx, ry = self.touch_map["pad_center"]
@@ -89,13 +97,16 @@ class ScrcpyControl:
             x, y = self.posX, self.posY
             self.touch_end(x, y, self.move_touch_id)
             self.is_touching = False
-        directions = direction.split("_")
+            return
+        
+        if direction:
+            directions = direction.split("_")
 
-        if not self.is_touching:
-            self.move_start(directions)
-            self.is_touching = True
+            if not self.is_touching:
+                self.move_start(directions)
+                self.is_touching = True
 
-        self.move_change(directions)
+            self.move_change(directions)
 
     def update_direction(self, new_direction:str):
         if new_direction != self.current_direction:
@@ -156,7 +167,7 @@ class ScrcpyControl:
     def attack_thread(self):
         x, y = self.touch_map["attack"]
         self.touch_start(x, y, self.attack_touch_id)
-        time.sleep(0.1)
+        time.sleep(0.005)
         self.touch_end(x, y, self.attack_touch_id)
 
     def stop_all(self):

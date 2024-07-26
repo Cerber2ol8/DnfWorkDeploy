@@ -1,6 +1,6 @@
 import random
 import time
-
+import math
 import cv2
 import numpy as np
 import os
@@ -90,15 +90,35 @@ class GameAgent:
         self.to_release = to_release
 
 
+
         self.last_action = ""
         self.get_buff = False
         self.round_completed = False
         self.get_reward = False
+        self.operation_locker = threading.Lock()
+        self.operation_finshed = True
+
+
         self.player_xywh = [200,500,100,100]
+
+        self.last_player_xywh = self.player_xywh
+        self.stop_count = 0
+
+
         self.now_action = ""
         self.game_map = GameMap(map_name, map_dir)
 
 
+    def reset(self):
+        self.last_action = ""
+        self.get_buff = False
+        self.round_completed = False
+        self.now_action = ""
+        self.get_reward = False
+        self.player_xywh = [200,500,100,100]
+        self.game_map = GameMap(self.map_name, self.map_dir)
+        self.round_completed = False
+        
 
     def get_cls_name(self, cls_ids):
         cls_name = []
@@ -177,17 +197,9 @@ class GameAgent:
             for buff_id in range(len(self.buff_list)):
                 x, y = self.buff_list[buff_id]
                 self.control.tap(x, y, self.control.skill_touch_id)
-                time.sleep(0.2)
+                time.sleep(0.1)
             self.get_buff = True
 
-    def reset(self):
-        self.last_action = ""
-        self.get_buff = False
-        self.round_completed = False
-        self.now_action = ""
-        self.get_reward = False
-        self.player_xywh = [200,500,100,100]
-        self.game_map = GameMap(self.map_name, self.map_dir)
 
     def normal_attack(self):
         self.control.attack()
@@ -199,30 +211,121 @@ class GameAgent:
 
 
     def flip_card(self):
+        t = threading.Thread(
+            target=self.flip_card_worker
+        )
+
+        if self.operation_finshed:
+            t.start()
+
+    def flip_card_worker(self):
+
+        with self.operation_locker:
+            self.operation_finshed = False
+
         self.control.tap(100,100)
+        time.sleep(0.5)
         self.control.tap(100,100)
+        time.sleep(0.5)
         self.control.tap(100,100)
+        time.sleep(0.5)
+        
+        with self.operation_locker:
+            self.get_reward = True
+            self.operation_finshed = True
+            
+
+    def choose_next_game(self):
+        t = threading.Thread(
+            target=self.choose_next_game_worker
+        )
+
+        if self.operation_finshed:
+            t.start()
+
+    def choose_next_game_worker(self):
+        with self.operation_locker:
+            self.operation_finshed = False
+        self.control.tap_pos(self.touch_map["options_0"])
+        time.sleep(0.5)
+        self.control.tap_pos(self.touch_map["options_0"])
+        time.sleep(0.5)
+        self.control.tap_pos(self.touch_map["options_0"])
+        time.sleep(0.5)
+        print("=====NEXT GAME START=====")
+        
+        with self.operation_locker:
+            self.operation_finshed = True
+
+
+    def check_stop(self, max=5, thre=0.5):
+        x1, y1, w1, h1 = self.last_player_xywh
+        x2, y2, w2, h2 = self.player_xywh
+
+        center1 = [(2 * x1 + w1) / 2, (2 * y1 + h1) / 2]
+        center2 = [(2 * x2 + w2) / 2, (2 * y2 + h2) / 2]
+        w = (w1 + w2) / 2
+        h = (h1 + h2) / 2
+        hypotenuse = math.sqrt(w ** 2 + h ** 2)
+
+
+        diff_x = (center2[0] - center1[0])
+        diff_y = (center2[1] - center1[1])
+
+        distance = (diff_x ** 2 + diff_y ** 2)
+
+        is_move = distance / hypotenuse >= thre 
+
+        if not is_move:
+            self.stop_count += 1
+        else:
+            self.stop_count = 0
+        self.last_player_xywh = self.player_xywh
+        
+        if self.stop_count >= max:
+            return True
+        else:
+            return False
+
+
+        
+        
+
+
 
 
 
     # 控制角色执行操作
-    def actions(self, img_object, cls_object):
+    def actions(self, img_object, cls_object, thx=50, thy=50, attx=200, atty=100):
+        # 方向阈值
+        # thx = 30  # 捡东西时，x方向的阈值
+        # thy = 30  # 捡东西时，y方向的阈值
+        # attx = 60  # 攻击时，x方向的阈值
+        # atty = 30  # 攻击时，y方向的阈值
         # 目标框:xywh,目标类别:str，当前房间id:int，buff动作:list[str]，攻击动作:list[str]
+
+        direction = "STOP"
 
         round_completed = False
 
         details = ""
 
+        if self.game_map.game_path.is_waiting():
 
-        direction = "STOP"
+            self.last_action = "WAITING FOR CROSSING ROOM DOOR"
+            directs = self.game_map.path_fit(self.game_map.game_path)
+            direction = direct(directs)
+
+            return self.last_action, direction
+        elif not self.operation_finshed:
+
+            self.last_action = "WAITING FOR OPERATION"
+            direction = "STOP"
+            return self.last_action, direction
 
         if img_object is not None and len(img_object):
 
-            # 方向阈值
-            thx = 30  # 捡东西时，x方向的阈值
-            thy = 30  # 捡东西时，y方向的阈值
-            attx = 60  # 攻击时，x方向的阈值
-            atty = 30  # 攻击时，y方向的阈值
+ 
 
             monsters_seen = [] #  [{cls_name: bbox}]
             items_seen = []
@@ -260,15 +363,43 @@ class GameAgent:
                 if cls_object[i] in direct_hints:
                     direct_hints_seen.append([cls_object[i], img_object[i]])
 
+
+            if len(card_seem) > 0:
+
+                self.control.stop_all()
+                self.now_action = "CHECKING AWARD CARDS"
+                # time.sleep(1)
+                self.flip_card()
+                direction = "STOP"
+                self.now_action = "GET REWARD CARD"
+                self.last_action = self.now_action
+                return self.last_action, direction
+            
+            elif self.get_reward and len(items_seen) == 0:
+                self.choose_next_game()
+                self.reset()
+                direction = "STOP"
+                self.now_action = "CHOOSE NEXT GAME"
+                self.last_action = self.now_action
+                return self.last_action, direction
+
             # 遇怪优先打怪
             # 捡东西
             # 根据房间id 和方位进下一个门
-            if self.player_xywh is None and not self.get_reward:
+            elif self.player_xywh is None and not self.get_reward:
                 self.now_action = "PLAYER NOT FOUND"
 
-                direction = "RIGHT" # 默认往右走
+                direction = "STOP" # 默认往右走
+            
+            elif self.check_stop():
+                # 判断角色是否连续不动
+                self.now_action = "PLAYER STOP DETECTED"
+                self.control.move_to_direction("STOP")
+                direction = "RIGHT"
+                self.last_action = self.now_action
 
-            if len(monsters_seen) > 0:
+                
+            elif len(monsters_seen) > 0:
                 self.get_reward = False
                 self.now_action = "ATTACKING MONSTERS"
                 monster_name = ""
@@ -298,14 +429,21 @@ class GameAgent:
                         self.control.turn("LEFT")
 
                     prob = random.randint(0,10)
-                    if prob < 5:
+                    if prob < 8:
                         self.normal_attack()
 
+                    if self.game_map.is_special_room():
+                        idx = random.randint(0,len(self.skill_list)-1)
+                        self.release_skill(idx)
+                        details = f"RELEASED sp skill"
+                        self.now_action += f" [{details}]"
 
                     if len(self.skill_list)>0:
                         idx = random.randint(0,len(self.skill_list)-1)
                         self.release_skill(idx)
-                        details = f"SKILL {idx} RELEASED"
+                        details = f"RELEASED {idx} SKILL ATTACK MONSTER {monster_name}"
+                        self.now_action += f" [{details}]"
+
 
                     # clear_action(action_cache, directkeys)
 
@@ -323,7 +461,7 @@ class GameAgent:
 
                     direction = direct(directs)
 
-                    details = f"GO {direction} TO ATTACK {monster_name}"
+                    details = f"GO {direction} TO FIND {monster_name}"
                     self.now_action += f" [{details}]"
                     # key_status, directions = self.control.direction_move(direct=d, to_release=self.to_release)
                 
@@ -367,13 +505,7 @@ class GameAgent:
                     self.now_action += f" [{details}]"
                     # key_status, directions = self.control.direction_move(direct=d, to_release=self.to_release)
             
-            elif len(card_seem) > 0:
 
-                self.control.stop_all()
-                self.now_action = "CHECKING AWARD CARDS"
-                # time.sleep(1)
-                self.flip_card()
-                self.get_reward = True
 
             # 跟随提示
             else:
@@ -381,7 +513,7 @@ class GameAgent:
                     round_completed = True
   
                 elif self.game_map:
-                    direction = self.where_to_go(open_door_seen, self.player_xywh, self.game_map.game_path, self.control, hint_xywh=None)
+                    direction = self.where_to_go(open_door_seen, self.player_xywh)
 
                 elif len(direct_hints_seen) > 0:
                     self.now_action = "FOLLOWING ROOM HINTS"
@@ -482,7 +614,7 @@ class GameAgent:
             # action = [direct_dic[key] for key in direct_dic.keys()][random.randint(0,len(direct_dic)-1)]
             # directkeys.key_press(action)
 
-        return self.last_action, direction
+        return self.last_action + f"[special room: {self.game_map.is_special_room()}]", direction
 
 
     # 获取地图中门的相对方位
@@ -504,16 +636,14 @@ class GameAgent:
             ret.append("LEFT")
         return ret
 
-    def where_to_go(self, door_seen, player_xywh, path:PathGraph, control:ScrcpyControl, hint_xywh=None):
-            
+    def where_to_go(self, door_seen, player_xywh, thx=100, thy=100):
+            path = self.game_map.game_path
 
             self.now_action = "FINDING WAY"
             details = ""
             door_directions = []
             doors_xywh = []
 
-            thx = 50
-            thy = 30
             # doors = []
             directs = [0,0,0,0] # left, right, up, down
             

@@ -15,10 +15,10 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QHBoxLayout,
-    QLabel, QLayout, QMainWindow, QPushButton,
-    QSizePolicy, QSpacerItem, QTextEdit, QVBoxLayout,
-    QWidget)
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame,
+    QHBoxLayout, QLabel, QLayout, QMainWindow,
+    QPushButton, QSizePolicy, QSpacerItem, QTextEdit,
+    QVBoxLayout, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -114,6 +114,11 @@ class Ui_MainWindow(object):
 
         self.verticalLayout_13.addWidget(self.button_move_stop)
 
+        self.button_attack = QPushButton(self.centralwidget)
+        self.button_attack.setObjectName(u"button_attack")
+
+        self.verticalLayout_13.addWidget(self.button_attack)
+
         self.button_test_skill = QPushButton(self.centralwidget)
         self.button_test_skill.setObjectName(u"button_test_skill")
 
@@ -133,6 +138,12 @@ class Ui_MainWindow(object):
         self.label_info1.setObjectName(u"label_info1")
 
         self.verticalLayout_15.addWidget(self.label_info1)
+
+        self.label_map = QLabel(self.centralwidget)
+        self.label_map.setObjectName(u"label_map")
+        self.label_map.setFrameShape(QFrame.NoFrame)
+
+        self.verticalLayout_15.addWidget(self.label_map)
 
         self.button_start = QPushButton(self.centralwidget)
         self.button_start.setObjectName(u"button_start")
@@ -218,9 +229,11 @@ class Ui_MainWindow(object):
         self.button_move_left.setText(QCoreApplication.translate("MainWindow", u"move left", None))
         self.button_move_right.setText(QCoreApplication.translate("MainWindow", u"move right", None))
         self.button_move_stop.setText(QCoreApplication.translate("MainWindow", u"move stop", None))
+        self.button_attack.setText(QCoreApplication.translate("MainWindow", u"test_attack", None))
         self.button_test_skill.setText(QCoreApplication.translate("MainWindow", u"test skill", None))
         self.button_cursor.setText(QCoreApplication.translate("MainWindow", u"show_cursor", None))
         self.label_info1.setText(QCoreApplication.translate("MainWindow", u"\u8fd0\u884c\u533a\u57df", None))
+        self.label_map.setText(QCoreApplication.translate("MainWindow", u"<html><head/><body><p><span style=\" font-size:20pt;\">Loading</span></p></body></html>", None))
         self.button_start.setText(QCoreApplication.translate("MainWindow", u"START DETECTION", None))
         self.button_stop.setText(QCoreApplication.translate("MainWindow", u"STOP DETECTION", None))
         self.label_fps.setText(QCoreApplication.translate("MainWindow", u"frame rate", None))

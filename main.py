@@ -16,12 +16,12 @@ import time
 from Ui_main import Ui_MainWindow
 
 os.environ['YOLO_VERBOSE'] = "false"
-# import torch
+import torch
 from yolo import YOLOv8
 
 from check_cuda import check_cuda_available
 check_cuda_available()
-sys.path.append("/home/cerbrus/.conda/envs/chatglm3-6b/lib/python3.10/site-packages/torch/lib")
+
 from yolo import draw_detections, class_names
 from ultralytics import YOLO
 from control import ScrcpyControl
@@ -142,13 +142,17 @@ class DetectionWorker(QObject):
         result = self.model(self.image)[0]
         # Process results list
 
-        _boxes = result.boxes.xywh.cpu().numpy()  # Boxes object for bounding box outputs
+        _boxes = result.boxes.xyxy.cpu().numpy()  # Boxes object for bounding box outputs
         # masks = result.masks  # Masks object for segmentation masks outputs
         # keypoints = result.keypoints  # Keypoints object for pose outputs
         _scores = result.boxes.conf.cpu().numpy()  # Probs object for classification outputs
         # obb = result.obb  # Oriented boxes object for OBB outputs
         _class_ids = result.boxes.cls.cpu().tolist()
         _class_ids = [int(value) for value in _class_ids]
+
+        # _output_image = draw_detections(self.image, _boxes, _scores, _class_ids)
+
+        # _output_image = result.plot()
 
 
 
@@ -163,7 +167,8 @@ class DetectionWorker(QObject):
             "bbox": _boxes,
             "scores": _scores,
             "class_ids": _class_ids,
-            "cost_time": _time
+            "cost_time": _time,
+            # "out_image": _output_image
         }
 
         self.ret.emit(ret_dict)
@@ -214,13 +219,15 @@ class MainWindow(QMainWindow):
         # print(self.touch_map)
 
         # self.model = YOLOv8("best.onnx", conf_thres=0.05)
-        self.model = YOLO("best.onnx")
+        self.model = YOLO("best.pt")
         self.model("test.png")
         self.bbox = []
         self.scores = []
         self.class_ids = []
         self.busy = False
+        self.busy_locker = threading.Lock()
         self.frame_time = ""
+        self.info = ""
 
 
         # Setup devices
@@ -243,7 +250,7 @@ class MainWindow(QMainWindow):
 
         self.control = ScrcpyControl(self) 
         # TODO 添加控件输入
-        self.game = GameAgent(self.touch_map, self.control, 10, "shanji", "maps/shanji", 10)
+        self.game = GameAgent(self.touch_map, self.control, 8, "shanji", "maps/shanji", 10)
         self.worker = None
         self.output_image = None
         self.paused = True
@@ -258,7 +265,7 @@ class MainWindow(QMainWindow):
 
         # Bind controllers
         self.ui.button_reload.clicked.connect(self.on_click_reload_config)
-        self.ui.button_back.clicked.connect(self.on_click_back)
+        self.ui.button_back.clicked.connect(self.on_click_reset)
         self.ui.button_move_up.clicked.connect(self.on_click_move_up)
         self.ui.button_move_down.clicked.connect(self.on_click_move_down)
         self.ui.button_move_left.clicked.connect(self.on_click_move_left)
@@ -267,7 +274,7 @@ class MainWindow(QMainWindow):
 
         self.ui.button_cursor.clicked.connect(self.on_click_show_cursor)
         self.ui.button_test_skill.clicked.connect(self.on_click_test_skill)
-
+        self.ui.button_attack.clicked.connect(self.on_click_attack)
 
         self.ui.button_start.clicked.connect(self.on_click_start)
         self.ui.button_stop.clicked.connect(self.on_click_stop)
@@ -275,6 +282,8 @@ class MainWindow(QMainWindow):
         # Bind config
         self.ui.combo_device.currentTextChanged.connect(self.choose_device)
         self.ui.flip.stateChanged.connect(self.on_flip)
+
+        self.mouse_down = False
 
         # Bind mouse event
         self.ui.label.mousePressEvent = self.on_mouse_event(scrcpy.ACTION_DOWN)
@@ -317,17 +326,33 @@ class MainWindow(QMainWindow):
         self.client.control.back_or_turn_screen_on(scrcpy.ACTION_DOWN)
         self.client.control.back_or_turn_screen_on(scrcpy.ACTION_UP)
 
+    def on_click_attack(self):
+        self.game.normal_attack()
+
     def on_mouse_event(self, action=scrcpy.ACTION_DOWN):
+
         def handler(evt: QMouseEvent):
             focused_widget = QApplication.focusWidget()
+            widget = focused_widget is not None
 
-            if focused_widget is not None:
-                ratio = self.max_width / max(self.client.resolution)
-                px, py = evt.position().x() / ratio, evt.position().y() / ratio
-                self.client.control.touch(px, py, action)
+            ratio = self.max_width / max(self.client.resolution)
+            px, py = evt.position().x() / ratio, evt.position().y() / ratio
 
-                if self.show_cursor:
-                    print(px, py)
+            if action == scrcpy.ACTION_DOWN:
+                self.mouse_down = True
+                if widget:
+                    self.control.touch_start(px, py, self.control.move_touch_id)
+
+            elif action == scrcpy.ACTION_UP:
+                self.mouse_down = False
+                if widget:
+                    self.control.touch_end(px, py, self.control.move_touch_id)
+            elif action == scrcpy.ACTION_MOVE:
+                if self.mouse_down == True and widget:
+                    self.control.touch_move(px, py, self.control.move_touch_id)
+
+            if self.show_cursor:
+                print(px, py)
 
 
 
@@ -336,19 +361,37 @@ class MainWindow(QMainWindow):
 
 
         return handler
+    
+    def move_test_worker(self, direction:str):
+        self.control.move_start([direction])
+        time.sleep(1)
+        self.control.move_stop()
+
 
     def on_click_move_up(self):
-        self.control.direction_move("UP", 50)
+        t = threading.Thread(
+            target=self.move_test_worker, args=("UP",)
+        )
+        t.start()
 
 
     def on_click_move_down(self):
-        self.control.direction_move("DOWN", 50)
+        t = threading.Thread(
+            target=self.move_test_worker, args=("DOWN",)
+        )
+        t.start()
 
     def on_click_move_left(self):
-        self.control.direction_move("LEFT", 50)
+        t = threading.Thread(
+            target=self.move_test_worker, args=("LEFT",)
+        )
+        t.start()
 
     def on_click_move_right(self):
-        self.control.direction_move("RIGHT", 50)
+        t = threading.Thread(
+            target=self.move_test_worker, args=("RIGHT",)
+        )
+        t.start()
 
     def on_click_show_cursor(self):
         self.show_cursor = not self.show_cursor 
@@ -362,14 +405,14 @@ class MainWindow(QMainWindow):
 
     def on_click_test_stop(self):
         self.game.move_stop()
-        self.control.move_stop()
+
 
     def on_click_test_skill(self):
         if self.test_config is None:
-            t = threading.Thread(target=self.test_worker)
+            t = threading.Thread(target=self.skill_test_worker)
             t.start()
             
-    def test_worker(self):
+    def skill_test_worker(self):
 
         n_buff = len(self.game.buff_list)
         n_skills = len(self.game.skill_list)
@@ -452,7 +495,9 @@ class MainWindow(QMainWindow):
         self.scores = ret_dict["scores"]
         self.class_ids = ret_dict["class_ids"]
         cost_time = ret_dict["cost_time"]
-        self.frame_time = f"{cost_time * 1000 } ms"
+        self.frame_time = f"{int(cost_time * 1000) } ms"
+        # self.output_image = ret_dict["out_image"]
+        
         cls_objects = []
 
         for cls in self.class_ids:
@@ -461,20 +506,23 @@ class MainWindow(QMainWindow):
         self.labels = cls_objects
 
 
-        self.busy = False
-
-
-
         last_action, direction = self.game.actions(self.bbox, self.labels)
         ct = time.time()
         local_time = time.localtime(ct)
         time_head = time.strftime("%Y-%m-%d %H:%M:%S", local_time)
         data_secs = (ct - int(ct)) * 1000
-        time_stamp = "%s.%03d" % (time_head, data_secs)
-        print(f"[{time_stamp}] [{self.frame_time}]  {last_action} moving: {direction}")
+        time_stamp = "%s.%01d" % (time_head, data_secs)
+        if self.info != last_action:
+            print(f"""[{time_stamp}] [{self.frame_time}] 
+                [ROOM_ID:{self.game.game_map.last_id}][PATH_ID:{self.game.game_map.game_path.curPathId}]
+                {last_action} moving: {direction}""")
+
+        self.info = last_action
         # print(self.control.direct_tick)
         # self.control.update_direction(direction)
         self.control.move_to_direction(direction)
+        with self.busy_locker:
+            self.busy = False
 
 
     def on_click_start(self):
@@ -482,42 +530,68 @@ class MainWindow(QMainWindow):
 
     def on_click_stop(self):
         self.paused = True
+    def on_click_reset(self):
+        self.game.reset()
+        with self.busy_locker:
+            self.busy = False
+
 
 
 
     def on_frame(self, frame, fx=0.4, fy=0.4):
         app.processEvents()
         if frame is not None:
+            map_id, _ = self.game.game_map.get_room_id(frame)
+
+
             self.game.frame += 1
             shape = frame.shape[0],frame.shape[1]
 
             ratio = self.max_width / max(self.client.resolution)
-            if not self.paused:
-
-                frame = cv2.resize(frame, None, fx=fx, fy=fy, interpolation=cv2.INTER_LINEAR)
-                # if self.busy:
-                #     print(f"[{time.time()}] dropped")
-
-                if not self.busy and self.game.frame // self.game.frame_freq:
-                    self.busy = True
-                    self.start_detect(frame)
-                    # print(self.game.frame)
-
-                if len(self.bbox) > 0:
-                    self.output_image = draw_detections(frame, self.bbox, self.scores, self.class_ids)
-                    frame = self.output_image
-
-                frame = cv2.resize(frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
-
-            # self.game.main_loop(self.bbox, self.labels)
             image = QImage(
                 frame,
-                frame.shape[1],
-                frame.shape[0],
-                frame.shape[1] * 3,
+                shape[1],
+                shape[0],
+                shape[1] * 3,
                 QImage.Format_BGR888,
             )
-            self.ui.label_fps.text = self.frame_time
+
+            if not self.paused:
+                if self.game.frame % self.game.frame_freq == 0:
+
+                    input_img = cv2.resize(frame, None, fx=fx, fy=fy, interpolation=cv2.INTER_LINEAR)
+                    if self.busy:
+                        print(f"frame [{self.game.frame}] dropped")
+                    else:
+                        with self.busy_locker:
+                            self.busy = True
+                        self.start_detect(input_img)
+                        # print(self.game.frame)
+
+
+                # self.game.main_loop(self.bbox, self.labels)
+                if len(self.bbox)>0:
+                    # frame = cv2.resize(frame, None, fx=fx, fy=fy, interpolation=cv2.INTER_LINEAR)
+                    bbox = []
+                    for box in self.bbox:
+                        x1,y1,x2,y2 = box
+                        bbox.append([x1 // fx, y1 // fy, x2 // fx, y2 // fy])
+                    bbox = np.array(bbox)
+
+                    frame = draw_detections(frame, bbox, self.scores, self.class_ids)
+                    # frame = cv2.resize(frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
+                    image = QImage(
+                        frame,
+                        shape[1],
+                        shape[0],
+                        shape[1] * 3,
+                        QImage.Format_BGR888,
+                    )
+                        
+
+                    
+
+            self.ui.label_fps.setText(self.frame_time)
 
 
 
@@ -530,12 +604,22 @@ class MainWindow(QMainWindow):
             #     frame.shape[1] * 3,
             #     QImage.Format_BGR888,
             # )
+            maplist = self.game.game_map.maplist
+            map_img = maplist[map_id]
 
-
+            map_qimg = QImage(
+                map_img,
+                map_img.shape[1],
+                map_img.shape[0],
+                map_img.shape[1] * 3,
+                QImage.Format_BGR888,
+            )
             # pix = QPixmap(output_image)
             pix = QPixmap(image)
             pix.setDevicePixelRatio(1 / ratio)
             self.ui.label.setPixmap(pix)
+
+            self.ui.label_map.setPixmap(QPixmap(map_qimg))
             self.resize(1, 1)
 
     def closeEvent(self, _):
