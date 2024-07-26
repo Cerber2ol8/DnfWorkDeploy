@@ -165,7 +165,7 @@ class PathGraph:
     def wait_stop_worker(self):
         with self.locker:
             self.inertia = True
-        time.sleep(0.5)
+        time.sleep(1)
         with self.locker:
             self.inertia = False
 

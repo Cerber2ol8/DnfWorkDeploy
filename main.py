@@ -16,7 +16,7 @@ import time
 from Ui_main import Ui_MainWindow
 
 os.environ['YOLO_VERBOSE'] = "false"
-# import torch
+import torch
 from yolo import YOLOv8
 
 from check_cuda import check_cuda_available
@@ -150,6 +150,10 @@ class DetectionWorker(QObject):
         _class_ids = result.boxes.cls.cpu().tolist()
         _class_ids = [int(value) for value in _class_ids]
 
+        # _output_image = draw_detections(self.image, _boxes, _scores, _class_ids)
+
+        # _output_image = result.plot()
+
 
 
 
@@ -163,7 +167,8 @@ class DetectionWorker(QObject):
             "bbox": _boxes,
             "scores": _scores,
             "class_ids": _class_ids,
-            "cost_time": _time
+            "cost_time": _time,
+            # "out_image": _output_image
         }
 
         self.ret.emit(ret_dict)
@@ -214,12 +219,13 @@ class MainWindow(QMainWindow):
         # print(self.touch_map)
 
         # self.model = YOLOv8("best.onnx", conf_thres=0.05)
-        self.model = YOLO("best.onnx")
+        self.model = YOLO("best.pt")
         self.model("test.png")
         self.bbox = []
         self.scores = []
         self.class_ids = []
         self.busy = False
+        self.busy_locker = threading.Lock()
         self.frame_time = ""
         self.info = ""
 
@@ -244,7 +250,7 @@ class MainWindow(QMainWindow):
 
         self.control = ScrcpyControl(self) 
         # TODO 添加控件输入
-        self.game = GameAgent(self.touch_map, self.control, 15, "shanji", "maps/shanji", 10)
+        self.game = GameAgent(self.touch_map, self.control, 8, "shanji", "maps/shanji", 10)
         self.worker = None
         self.output_image = None
         self.paused = True
@@ -259,7 +265,7 @@ class MainWindow(QMainWindow):
 
         # Bind controllers
         self.ui.button_reload.clicked.connect(self.on_click_reload_config)
-        self.ui.button_back.clicked.connect(self.on_click_back)
+        self.ui.button_back.clicked.connect(self.on_click_reset)
         self.ui.button_move_up.clicked.connect(self.on_click_move_up)
         self.ui.button_move_down.clicked.connect(self.on_click_move_down)
         self.ui.button_move_left.clicked.connect(self.on_click_move_left)
@@ -490,16 +496,14 @@ class MainWindow(QMainWindow):
         self.class_ids = ret_dict["class_ids"]
         cost_time = ret_dict["cost_time"]
         self.frame_time = f"{int(cost_time * 1000) } ms"
+        # self.output_image = ret_dict["out_image"]
+        
         cls_objects = []
 
         for cls in self.class_ids:
             label_text = class_names[cls]
             cls_objects.append(label_text)
         self.labels = cls_objects
-
-
-        self.busy = False
-
 
 
         last_action, direction = self.game.actions(self.bbox, self.labels)
@@ -517,6 +521,8 @@ class MainWindow(QMainWindow):
         # print(self.control.direct_tick)
         # self.control.update_direction(direction)
         self.control.move_to_direction(direction)
+        with self.busy_locker:
+            self.busy = False
 
 
     def on_click_start(self):
@@ -524,6 +530,11 @@ class MainWindow(QMainWindow):
 
     def on_click_stop(self):
         self.paused = True
+    def on_click_reset(self):
+        self.game.reset()
+        with self.busy_locker:
+            self.busy = False
+
 
 
 
@@ -537,31 +548,49 @@ class MainWindow(QMainWindow):
             shape = frame.shape[0],frame.shape[1]
 
             ratio = self.max_width / max(self.client.resolution)
-            if not self.paused:
-
-                frame = cv2.resize(frame, None, fx=fx, fy=fy, interpolation=cv2.INTER_LINEAR)
-                # if self.busy:
-                #     print(f"[{time.time()}] dropped")
-
-                if not self.busy and self.game.frame // self.game.frame_freq:
-                    self.busy = True
-                    self.start_detect(frame)
-                    # print(self.game.frame)
-
-                if len(self.bbox) > 0:
-                    self.output_image = draw_detections(frame, self.bbox, self.scores, self.class_ids)
-                    frame = self.output_image
-
-                frame = cv2.resize(frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
-
-            # self.game.main_loop(self.bbox, self.labels)
             image = QImage(
                 frame,
-                frame.shape[1],
-                frame.shape[0],
-                frame.shape[1] * 3,
+                shape[1],
+                shape[0],
+                shape[1] * 3,
                 QImage.Format_BGR888,
             )
+
+            if not self.paused:
+                if self.game.frame % self.game.frame_freq == 0:
+
+                    input_img = cv2.resize(frame, None, fx=fx, fy=fy, interpolation=cv2.INTER_LINEAR)
+                    if self.busy:
+                        print(f"frame [{self.game.frame}] dropped")
+                    else:
+                        with self.busy_locker:
+                            self.busy = True
+                        self.start_detect(input_img)
+                        # print(self.game.frame)
+
+
+                # self.game.main_loop(self.bbox, self.labels)
+                if len(self.bbox)>0:
+                    # frame = cv2.resize(frame, None, fx=fx, fy=fy, interpolation=cv2.INTER_LINEAR)
+                    bbox = []
+                    for box in self.bbox:
+                        x1,y1,x2,y2 = box
+                        bbox.append([x1 // fx, y1 // fy, x2 // fx, y2 // fy])
+                    bbox = np.array(bbox)
+
+                    frame = draw_detections(frame, bbox, self.scores, self.class_ids)
+                    # frame = cv2.resize(frame, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
+                    image = QImage(
+                        frame,
+                        shape[1],
+                        shape[0],
+                        shape[1] * 3,
+                        QImage.Format_BGR888,
+                    )
+                        
+
+                    
+
             self.ui.label_fps.setText(self.frame_time)
 
 

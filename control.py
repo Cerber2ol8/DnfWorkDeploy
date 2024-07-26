@@ -52,6 +52,14 @@ class ScrcpyControl:
         time.sleep(0.005)
         self.touch_end(x, y, touch_id=touch_id)
 
+    def tap_pos(self, pos: list, touch_id=-1):
+        x = pos[0]
+        y = pos[1]
+        self.touch_start(x, y, touch_id=touch_id)
+        time.sleep(0.005)
+        self.touch_end(x, y, touch_id=touch_id)
+
+
     def calc_mov_point(self, angle: float) -> Tuple[int, int]:
         rx, ry = self.touch_map["pad_center"]
         r = 100
