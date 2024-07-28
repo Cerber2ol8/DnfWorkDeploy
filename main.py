@@ -1,31 +1,36 @@
 from argparse import ArgumentParser
 from typing import Optional, Tuple
+import os
+current_path = os.environ.get('PATH', '')
+new_path = os.path.abspath(os.getcwd())
+os.environ['PATH'] = current_path + os.pathsep + new_path
 
 from adbutils import adb
-from PySide6.QtGui import QImage, QKeyEvent, QMouseEvent, QPixmap
+from PySide6.QtGui import QImage, QKeyEvent, QMouseEvent, QPixmap, QTextCursor, QKeySequence
 from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
-from PySide6.QtCore import QObject, Signal, QThread
+from PySide6.QtCore import QObject, Signal, Qt
 
 import threading
 import scrcpy
-import sys, os
+
 import json
 import numpy as np
 import time
 
 from Ui_main import Ui_MainWindow
 
-os.environ['YOLO_VERBOSE'] = "false"
-import torch
-from yolo import YOLOv8
+# os.environ['YOLO_VERBOSE'] = "false"
+
 
 from check_cuda import check_cuda_available
 check_cuda_available()
 
-from yolo import draw_detections, class_names
-from ultralytics import YOLO
+from utils import draw_detections, class_names
+# from ultralytics import YOLO
+import yolo
+from yolo import YOLOv8
 from control import ScrcpyControl
-from game import GameAgent
+from game import GameAgent, GameConfig
 
 import cv2
 
@@ -121,6 +126,27 @@ class PrintLogger:
     def flush(self):
         pass
 
+class Logger:
+    def __init__(self, text_edit):
+        self.text_edit = text_edit
+
+    def __call__(self, *message):
+        for arg in message:
+            self.write(str(arg).replace("\n", "\r\n"))
+
+
+    def write(self, message):
+        if message != '\n':
+            print(message)
+            self.text_edit.append(message)
+            self.text_edit.moveCursor(QTextCursor.End)
+
+    def flush(self):
+        self.text_edit.setText("")
+
+
+
+
 class DetectionWorker(QObject):
     # finished = Signal()
     # bbox = Signal(list)
@@ -138,17 +164,17 @@ class DetectionWorker(QObject):
     def run(self):
         # TODO 控件绑定变量不起作用
         start = time.time()
-        # _boxes, _scores, _class_ids = self.model(self.image)
-        result = self.model(self.image)[0]
+        _boxes, _scores, _class_ids = self.model(self.image)
+        # result = self.model(self.image)[0]
         # Process results list
 
-        _boxes = result.boxes.xyxy.cpu().numpy()  # Boxes object for bounding box outputs
+        # _boxes = result.boxes.xyxy.cpu().numpy()  # Boxes object for bounding box outputs
         # masks = result.masks  # Masks object for segmentation masks outputs
         # keypoints = result.keypoints  # Keypoints object for pose outputs
-        _scores = result.boxes.conf.cpu().numpy()  # Probs object for classification outputs
+        # _scores = result.boxes.conf.cpu().numpy()  # Probs object for classification outputs
         # obb = result.obb  # Oriented boxes object for OBB outputs
-        _class_ids = result.boxes.cls.cpu().tolist()
-        _class_ids = [int(value) for value in _class_ids]
+        # _class_ids = result.boxes.cls.cpu().tolist()
+        # _class_ids = [int(value) for value in _class_ids]
 
         # _output_image = draw_detections(self.image, _boxes, _scores, _class_ids)
 
@@ -207,20 +233,23 @@ class MainWindow(QMainWindow):
         self.ui.setupUi(self)
         self.max_width = max_width
         # 重定向print输出
-        sys.stdout = PrintLogger(self.ui.textEdit)
+        # sys.stdout = PrintLogger(self.ui.textEdit)
         # sys.stderr = PrintLogger(self.ui.textEdit)
+        self.logger = Logger(self.ui.textEdit)
+
 
         self.config_file = "config.json"
 
         self.config = read_config(self.config_file)
         self.touch_map = self.config["touch_map"]
+        self.keyboard_map = self.config["keyboard_map"]
 
         self.test_config = None
         # print(self.touch_map)
 
         # self.model = YOLOv8("best.onnx", conf_thres=0.05)
-        self.model = YOLO("best.pt")
-        self.model("test.png")
+        self.model = YOLOv8("best.onnx", conf_thres=0.35, iou_thres=0.75)
+        # self.model("test.png")
         self.bbox = []
         self.scores = []
         self.class_ids = []
@@ -228,6 +257,7 @@ class MainWindow(QMainWindow):
         self.busy_locker = threading.Lock()
         self.frame_time = ""
         self.info = ""
+        self.current_frame = None
 
 
         # Setup devices
@@ -250,12 +280,22 @@ class MainWindow(QMainWindow):
 
         self.control = ScrcpyControl(self) 
         # TODO 添加控件输入
-        self.game = GameAgent(self.touch_map, self.control, 8, "shanji", "maps/shanji", 10)
+        
+        self.game = GameAgent(
+            self.touch_map, self.control, 8, "shanji",
+              "maps/shanji", 10,
+              GameConfig()
+              )
         self.worker = None
         self.output_image = None
         self.paused = True
 
         self.show_cursor = False
+
+        self.map_save_count = 0
+        self.setting_map = False
+
+        self.keyboard_mode = self.ui.keyboard_mode.isChecked()
 
 
 
@@ -279,11 +319,28 @@ class MainWindow(QMainWindow):
         self.ui.button_start.clicked.connect(self.on_click_start)
         self.ui.button_stop.clicked.connect(self.on_click_stop)
 
+        self.ui.button_save_map.clicked.connect(self.on_click_save_map)
+
+        self.ui.button_get_map.clicked.connect(self.on_click_get_map)
+
+        self.ui.slider_frame_req.valueChanged.connect(self.on_slider_frame_freq_changed)
+        self.ui.slider_attx.valueChanged.connect(self.on_slider_attx_changed)
+        self.ui.slider_atty.valueChanged.connect(self.on_slider_atty_changed)
+
+
+
+
         # Bind config
         self.ui.combo_device.currentTextChanged.connect(self.choose_device)
         self.ui.flip.stateChanged.connect(self.on_flip)
 
         self.mouse_down = False
+        self.setFocusPolicy(Qt.StrongFocus)
+
+        # 设置控件初值
+        self.ui.slider_frame_req.setValue(self.game.frame_freq)
+        self.ui.slider_attx.setValue(self.game.conf.enemy_x)
+        self.ui.slider_atty.setValue(self.game.conf.enemy_y)
 
         # Bind mouse event
         self.ui.label.mousePressEvent = self.on_mouse_event(scrcpy.ACTION_DOWN)
@@ -291,8 +348,26 @@ class MainWindow(QMainWindow):
         self.ui.label.mouseReleaseEvent = self.on_mouse_event(scrcpy.ACTION_UP)
 
         # Keyboard event
-        self.keyPressEvent = self.on_key_event(scrcpy.ACTION_DOWN)
-        self.keyReleaseEvent = self.on_key_event(scrcpy.ACTION_UP)
+        self.keyPressEvent = self.on_key_down()
+        self.keyReleaseEvent = self.on_key_up()
+
+
+    def on_slider_frame_freq_changed(self, value):
+        self.game.frame_freq = value
+        self.logger(f"change frame_freq to { value }")
+        self.ui.label_info_frame_freq.setText(str(value))
+
+    def on_slider_attx_changed(self, value):
+        self.game.conf.enemy_x = value
+        self.logger(f"change enemy_x to { value }")
+        self.ui.label_attx.setText(str(value))
+
+
+
+    def on_slider_atty_changed(self, value):
+        self.game.conf.enemy_y = value
+        self.logger(f"change enemy_y to { value }")
+        self.ui.label_atty.setText(str(value))
 
 
     def choose_device(self, device):
@@ -329,6 +404,62 @@ class MainWindow(QMainWindow):
     def on_click_attack(self):
         self.game.normal_attack()
 
+
+
+
+    def on_click_get_map(self):
+
+        self.setting_map = True
+
+        img = self.game.game_map.get_map(self.current_frame)
+
+        # shape = img.shape
+
+        # image = QImage(
+        #     img,
+        #     shape[1],
+        #     shape[0],
+        #     shape[1] * 3,
+        #     QImage.Format_BGR888,
+        # )
+
+        # pix = QPixmap(image)
+
+        # self.ui.label_map.setPixmap(pix)
+
+    def on_click_reset_map(self):
+        self.map_save_count = 0
+
+
+
+    def on_click_save_map(self):
+
+        if not os.path.exists("maps"):
+            os.mkdir("maps")
+
+
+        dir = os.path.join(os.path.abspath(os.getcwd()), "maps","shanji")
+        if not os.path.exists(dir):
+            os.mkdir(dir)
+
+        img_path = os.path.join(dir, str(self.map_save_count) + ".png")
+
+        img = self.game.game_map.get_map(self.current_frame)
+
+        if os.path.exists(img_path):
+            reply = QMessageBox.question(self, "地图图片已存在", "要覆盖这个图片吗？",
+                                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                cv2.imwrite(img_path, img)
+                self.map_save_count += 1
+        else:
+            cv2.imwrite(img_path, img)
+            self.map_save_count += 1
+
+
+
+
+
     def on_mouse_event(self, action=scrcpy.ACTION_DOWN):
 
         def handler(evt: QMouseEvent):
@@ -352,16 +483,14 @@ class MainWindow(QMainWindow):
                     self.control.touch_move(px, py, self.control.move_touch_id)
 
             if self.show_cursor:
-                print(px, py)
-
-
-
-            
-
-
+                # print(px, py)
+                self.logger(px, py)
 
         return handler
     
+
+
+
     def move_test_worker(self, direction:str):
         self.control.move_start([direction])
         time.sleep(1)
@@ -417,7 +546,8 @@ class MainWindow(QMainWindow):
         n_buff = len(self.game.buff_list)
         n_skills = len(self.game.skill_list)
         n_sp_skills = len(self.game.sp_skills_list)
-        print(f"buff count:{n_buff}, skill count:{n_skills}, sp skill count:{n_sp_skills}")
+        # print(f"buff count:{n_buff}, skill count:{n_skills}, sp skill count:{n_sp_skills}")
+        self.logger(f"buff count:{n_buff}, skill count:{n_skills}, sp skill count:{n_sp_skills}")
 
         self.game.release_buff()
         
@@ -438,13 +568,103 @@ class MainWindow(QMainWindow):
         time.sleep(0.5)
         self.game.normal_attack()
 
-    def on_key_event(self, action=scrcpy.ACTION_DOWN):
+    def on_key_down(self):
+        action=scrcpy.ACTION_DOWN
         def handler(evt: QKeyEvent):
-            code = self.map_code(evt.key())
-            if code != -1:
-                self.client.control.keycode(code, action)
+            if self.ui.keyboard_mode.isChecked():
+                code = self.map_code(evt.key())
+                if code != -1:
+                    self.client.control.keycode(code, action)
+            else:
+                auto_repeate = evt.isAutoRepeat()
+                evt_type = evt.type()
+                self.map_keyboard(evt.key(), action, auto_repeate)
 
         return handler
+    def on_key_up(self, action=scrcpy.ACTION_UP):
+        action=scrcpy.ACTION_UP
+        def handler(evt: QKeyEvent):
+            if self.ui.keyboard_mode.isChecked():
+                code = self.map_code(evt.key())
+                if code != -1:
+                    self.client.control.keycode(code, action)
+            else:
+                auto_repeate = evt.isAutoRepeat()
+                evt_type = evt.type()
+                self.map_keyboard(evt.key(), action, auto_repeate)
+        return handler
+    
+    
+    def map_keyboard(self, code, action=scrcpy.ACTION_DOWN, auto_repeate=False):
+        # ← ↑ → ↓ 16777234 16777235 16777236 16777237
+        # 
+        if auto_repeate:
+            return
+
+        # x, y = self.keyboard_map[""]
+        direction = ""
+        directions = self.control.directions
+        if code == 16777234:
+            direction = "LEFT"
+        elif code == Qt.Key_Up:
+            direction = "UP"
+        elif code == 16777236:
+            direction = "RIGHT"
+        elif code == Qt.Key_Down:
+            direction = "DOWN"
+        else:
+            pass
+
+
+
+        if action == scrcpy.ACTION_UP and not auto_repeate:
+            if direction in directions:
+                self.control.directions.remove(direction)
+            else:
+                keys = list(self.keyboard_map.values())
+                keys = list(filter(None, keys))
+
+                for key_str in keys:
+                    keycode = QKeySequence(key_str)[0].key()
+                    if keycode == code:
+                        acion_name = self.get_keys_by_value(self.keyboard_map, key_str)
+                        x, y = self.touch_map[acion_name]
+                        self.control.touch_end(x, y, self.control.skill_touch_id)
+
+                        self.logger(f"skill key released {acion_name}")
+
+
+
+
+            self.logger(f"KEY {code} UP")
+        elif action == scrcpy.ACTION_DOWN and not auto_repeate:
+            if len(direction) > 0 and direction not in directions:
+                self.control.directions.append(direction)
+            else:
+                keys = list(self.keyboard_map.values())
+                keys = list(filter(None, keys))
+
+                for key_str in keys:
+                    keycode = QKeySequence(key_str)[0].key()
+                    if keycode == code:
+                        acion_name = self.get_keys_by_value(self.keyboard_map, key_str)
+                        x, y = self.touch_map[acion_name]
+                        self.control.touch_start(x, y, self.control.skill_touch_id)
+                        self.logger(f"skill key pressed {acion_name}")
+
+
+            self.logger(f"KEY {code} DOWN")
+
+
+
+        target = "_".join(self.control.directions) if len(self.control.directions)>0 else "STOP"
+        self.control.move_to_direction(target)
+
+        self.logger(f"move_to_direction {target}")
+
+
+    def get_keys_by_value(self, d, target_value):
+        return [k for k, v in d.items() if v == target_value][0]
 
     def map_code(self, code):
         """
@@ -475,7 +695,7 @@ class MainWindow(QMainWindow):
         if code in hard_code:
             return hard_code[code]
 
-        print(f"Unknown keycode: {code}")
+        # print(f"Unknown keycode: {code}")
         return -1
 
     def on_init(self):
@@ -495,7 +715,7 @@ class MainWindow(QMainWindow):
         self.scores = ret_dict["scores"]
         self.class_ids = ret_dict["class_ids"]
         cost_time = ret_dict["cost_time"]
-        self.frame_time = f"{int(cost_time * 1000) } ms"
+        self.frame_time = f"latency {int(cost_time * 1000) } ms"
         # self.output_image = ret_dict["out_image"]
         
         cls_objects = []
@@ -513,11 +733,14 @@ class MainWindow(QMainWindow):
         data_secs = (ct - int(ct)) * 1000
         time_stamp = "%s.%01d" % (time_head, data_secs)
         if self.info != last_action:
-            print(f"""[{time_stamp}] [{self.frame_time}] 
+            # print(f"""[{time_stamp}] [{self.frame_time}] 
+            #     [ROOM_ID:{self.game.game_map.last_id}][PATH_ID:{self.game.game_map.game_path.curPathId}]
+            #     {last_action} moving: {direction}""")
+            self.logger(f"""[{time_stamp}] [{self.frame_time}] 
                 [ROOM_ID:{self.game.game_map.last_id}][PATH_ID:{self.game.game_map.game_path.curPathId}]
                 {last_action} moving: {direction}""")
-
         self.info = last_action
+        self.frame_time += f"\r\n[ROOM_ID:{self.game.game_map.last_id}][PATH_ID:{self.game.game_map.game_path.curPathId}]"
         # print(self.control.direct_tick)
         # self.control.update_direction(direction)
         self.control.move_to_direction(direction)
@@ -538,9 +761,10 @@ class MainWindow(QMainWindow):
 
 
 
-    def on_frame(self, frame, fx=0.4, fy=0.4):
+    def on_frame(self, frame, fx=1.0, fy=1.0):
         app.processEvents()
         if frame is not None:
+            self.current_frame = frame.copy()
             map_id, _ = self.game.game_map.get_room_id(frame)
 
 
@@ -561,7 +785,8 @@ class MainWindow(QMainWindow):
 
                     input_img = cv2.resize(frame, None, fx=fx, fy=fy, interpolation=cv2.INTER_LINEAR)
                     if self.busy:
-                        print(f"frame [{self.game.frame}] dropped")
+                        # print(f"frame [{self.game.frame}] dropped")
+                        self.logger(f"frame [{self.game.frame}] dropped")
                     else:
                         with self.busy_locker:
                             self.busy = True
@@ -604,22 +829,23 @@ class MainWindow(QMainWindow):
             #     frame.shape[1] * 3,
             #     QImage.Format_BGR888,
             # )
-            maplist = self.game.game_map.maplist
-            map_img = maplist[map_id]
+            # maplist = self.game.game_map.maplist
+            # map_img = maplist[map_id]
 
-            map_qimg = QImage(
-                map_img,
-                map_img.shape[1],
-                map_img.shape[0],
-                map_img.shape[1] * 3,
-                QImage.Format_BGR888,
-            )
+            # map_qimg = QImage(
+            #     map_img,
+            #     map_img.shape[1],
+            #     map_img.shape[0],
+            #     map_img.shape[1] * 3,
+            #     QImage.Format_BGR888,
+            # )
             # pix = QPixmap(output_image)
             pix = QPixmap(image)
             pix.setDevicePixelRatio(1 / ratio)
             self.ui.label.setPixmap(pix)
 
-            self.ui.label_map.setPixmap(QPixmap(map_qimg))
+            # if not self.setting_map:
+            #     self.ui.label_map.setPixmap(QPixmap(map_qimg))
             self.resize(1, 1)
 
     def closeEvent(self, _):

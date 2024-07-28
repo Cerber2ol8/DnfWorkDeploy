@@ -62,15 +62,36 @@ items = ["money", "item"] # 掉落物
 
 buddings = ["open_door", "close_door"]  # 地图大门
 
+class GameConfig:
+    def __init__(self,
+                 enemy_x=500,
+                 enemy_y=300,
+                 item_x=80,
+                 item_y=80,
+                 door_x=150,
+                 door_y=150
+                 ) -> None:
+        
+        self.enemy_x = enemy_x
+        self.enemy_y = enemy_y
+        self.item_x = item_x
+        self.item_y = item_y
+        self.door_x = door_x
+        self.door_y = door_y
 
 
 class GameAgent:
     def __init__(self, touch_map:dict, control:ScrcpyControl, 
                  frame_freq = 5,
                  map_name:str="", map_dir:str="",
-                 to_release = 20) -> None:
+                 to_release = 20,
+                 conf:GameConfig = None
+
+                 ) -> None:
         self.frame = 0
         self.frame_freq = frame_freq # 每隔 frame_freq 帧处理一次
+
+        self.conf = conf
 
 
         self.banzhuan = True # 搬砖模式/升级模式（寻路路逻辑不同）
@@ -252,7 +273,7 @@ class GameAgent:
         time.sleep(0.5)
         self.control.tap_pos(self.touch_map["options_0"])
         time.sleep(0.5)
-        print("=====NEXT GAME START=====")
+        # print("=====NEXT GAME START=====")
         
         with self.operation_locker:
             self.operation_finshed = True
@@ -296,12 +317,16 @@ class GameAgent:
 
 
     # 控制角色执行操作
-    def actions(self, img_object, cls_object, thx=50, thy=50, attx=200, atty=100):
+    def actions(self, img_object, cls_object):
         # 方向阈值
-        # thx = 30  # 捡东西时，x方向的阈值
-        # thy = 30  # 捡东西时，y方向的阈值
-        # attx = 60  # 攻击时，x方向的阈值
-        # atty = 30  # 攻击时，y方向的阈值
+        thx = self.conf.item_x if self.conf is not None else 50  # 捡东西时，x方向的阈值
+        thy = self.conf.item_y if self.conf is not None  else 50  # 捡东西时，y方向的阈值
+        attx = self.conf.enemy_x if self.conf is not None  else 150  # 攻击时，x方向的阈值
+        atty = self.conf.enemy_y if self.conf is not None  else 60  # 攻击时，y方向的阈值
+
+
+
+
         # 目标框:xywh,目标类别:str，当前房间id:int，buff动作:list[str]，攻击动作:list[str]
 
         direction = "STOP"
@@ -367,11 +392,10 @@ class GameAgent:
             if len(card_seem) > 0:
 
                 self.control.stop_all()
-                self.now_action = "CHECKING AWARD CARDS"
                 # time.sleep(1)
                 self.flip_card()
                 direction = "STOP"
-                self.now_action = "GET REWARD CARD"
+                self.now_action = "GETTING REWARD CARD"
                 self.last_action = self.now_action
                 return self.last_action, direction
             
@@ -433,8 +457,8 @@ class GameAgent:
                         self.normal_attack()
 
                     if self.game_map.is_special_room():
-                        idx = random.randint(0,len(self.skill_list)-1)
-                        self.release_skill(idx)
+                        idx = random.randint(0,len(self.sp_skills_list)-1)
+                        self.release_skill(idx, is_sp=True)
                         details = f"RELEASED sp skill"
                         self.now_action += f" [{details}]"
 
@@ -636,7 +660,9 @@ class GameAgent:
             ret.append("LEFT")
         return ret
 
-    def where_to_go(self, door_seen, player_xywh, thx=100, thy=100):
+    def where_to_go(self, door_seen, player_xywh):
+            thx= self.conf.door_x if self.conf is not None else 230
+            thy= self.conf.door_y if self.conf is not None else 230
             path = self.game_map.game_path
 
             self.now_action = "FINDING WAY"

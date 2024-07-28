@@ -1,7 +1,10 @@
-import onnxruntime as ort
 import os
 import sys
+current_path = os.environ.get('PATH', '')
+new_path = os.path.abspath("./lib")
+os.environ['PATH'] = current_path + os.pathsep + new_path
 
+import onnxruntime as ort
 def add_library_path():
     if sys.platform.startswith('linux'):
         lib_path = os.path.abspath('lib_linux')

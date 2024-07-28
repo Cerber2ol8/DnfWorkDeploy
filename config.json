@@ -1,8 +1,8 @@
 {
     "touch_map": {
         "pad_center": [
-            430,
-            775
+            435,
+            785
         ],
         "attack": [
             2110,
@@ -45,19 +45,19 @@
             921
         ],
         "skill_4": [
-            1380,
+            1280,
             1030
         ],
         "skill_5": [
-            1500,
+            1400,
             1030
         ],
         "skill_6": [
-            1620,
+            1510,
             1030
         ],
         "skill_7": [
-            1272,
+            1620,
             1030
         ],
         "skill_8": [
@@ -72,9 +72,17 @@
             1725,
             916
         ],
+        "jump": [
+            2014,
+            1024
+        ],
+        "step_back": [
+            2117,
+            925
+        ],
         "options_0": [
             1950,
-            240
+            140
         ],
         "options_1": [
             0,
@@ -96,5 +104,35 @@
             0,
             0
         ]
+    },
+    "keyboard_map": {
+        "attack": "X",
+        "buff_0": "V",
+        "buff_1": "B",
+        "buff_2": "",
+        "buff_3": "",
+        "buff_4": "",
+        "skill_0": "Q",
+        "skill_1": "W",
+        "skill_2": "E",
+        "skill_3": "R",
+        "skill_4": "A",
+        "skill_5": "S",
+        "skill_6": "D",
+        "skill_7": "F",
+        "skill_8": "",
+        "skill_9": "",
+        "jump": "C",
+        "sp_0": "Y",
+        "step_back": "Z",
+        "options_0": "TAB",
+        "options_1": "ESC",
+        "options_2": "ENTER",
+        "options_3": "SHIFT",
+        "options_4": "1",
+        "options_5": "2"
     }
+
+    
+
 }

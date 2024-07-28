@@ -66,6 +66,7 @@ class ScrcpyControl:
 
         x = rx + r * math.cos(angle * math.pi / 180)
         y = ry + r * math.sin(angle * math.pi / 180)
+        # print(x, y, angle)
         return int(x), int(y)
 
     def move_test(self, directions:list, t):
@@ -200,7 +201,8 @@ class ScrcpyControl:
             angle = 225
         elif direction_mask == [0, 0, 0, 1]:
             angle = 270
-
+        elif direction_mask == [1, 0, 0, 1]:
+            angle = 315
         return angle
     
     def on_frame(self):
