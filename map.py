@@ -303,7 +303,7 @@ class GameMap:
         return ret
     
     def is_special_room(self):
-        return self.last_id == self.special_room
+        return self.game_path.curPathId == self.special_room
             
 
 
